@@ -32,6 +32,9 @@ import { BlockchainModule } from './integrations/blockchain/blockchain.module';
 import { PaymentModule } from './integrations/payment/payment.module';
 import { EmailModule } from './integrations/email/email.module';
 
+// Jobs
+import { JobsModule } from './jobs/jobs.module';
+
 // Health Check
 import { HealthModule } from './health/health.module';
 
@@ -90,6 +93,9 @@ import { rateLimitConfig } from './security/rate-limit.config';
     BlockchainModule,
     PaymentModule,
     EmailModule,
+
+    // Jobs (Background Processors)
+    JobsModule,
 
     // Health Check
     HealthModule,
