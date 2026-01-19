@@ -1,9 +1,28 @@
-dist
+# Dependencies
 node_modules
-coverage
-.next
-.vercel
+
+# Build
+dist
 build
+coverage
+
+# Logs
+logs
 *.log
+
+# Environment
 .env*
+
+# Cache
+.cache
+
+# Prisma
 prisma/migrations
+
+# Lock files
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Docs
+CHANGELOG.md
