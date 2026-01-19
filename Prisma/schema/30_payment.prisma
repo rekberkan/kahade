@@ -1,0 +1,109 @@
+// ============================================================================
+// PAYMENT MODELS
+// ============================================================================
+
+model Payment {
+  id                String          @id @default(uuid())
+  userId            String          @map("user_id")
+
+  provider          PaymentProvider @default(XENDIT)
+  providerInvoiceId String?         @unique @map("provider_invoice_id")
+
+  paymentType       PaymentType     @map("payment_type")
+  paymentMethod     PaymentMethod?  @map("payment_method")
+
+  currency          Currency        @default(IDR)
+  amountMinor       BigInt          @map("amount_minor") @db.BigInt
+
+  status            PaymentStatus   @default(PENDING)
+  paymentDetails    Json?           @map("payment_details")
+  paidAt            DateTime?       @map("paid_at")
+  createdAt         DateTime        @default(now()) @map("created_at")
+
+  // Link to order if this payment is for order
+  orderId           String?         @map("order_id")
+
+  user              User            @relation(fields: [userId], references: [id], onDelete: Restrict)
+  order             Order?          @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  deposit           Deposit?        @relation("PaymentDeposit")
+  statusHistory     PaymentStatusHistory[]
+  webhookEvents     WebhookEvent[]
+
+  @@index([status, createdAt])
+  @@index([userId])
+  @@index([orderId])
+  @@index([provider, providerInvoiceId])
+  @@index([userId, createdAt])
+  @@map("payments")
+}
+
+model PaymentStatusHistory {
+  id             String         @id @default(uuid())
+  paymentId      String         @map("payment_id")
+  fromStatus     PaymentStatus? @map("from_status")
+  toStatus       PaymentStatus  @map("to_status")
+  changedAt      DateTime       @default(now()) @map("changed_at")
+  changedBy      String?        @map("changed_by")
+  reason         String?
+  webhookEventId String?        @map("webhook_event_id")
+
+  payment        Payment        @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  webhookEvent   WebhookEvent?  @relation(fields: [webhookEventId], references: [id], onDelete: SetNull)
+
+  @@index([paymentId, changedAt])
+  @@index([webhookEventId])
+  @@map("payment_status_history")
+}
+
+model WebhookEvent {
+  id              String          @id @default(uuid())
+  provider        PaymentProvider @default(XENDIT)
+  eventId         String          @unique @map("event_id")
+  eventType       String          @map("event_type")
+  payload         Json
+
+  status          WebhookStatus   @default(PENDING)
+  retryCount      Int             @default(0) @map("retry_count")
+  maxRetries      Int             @default(3) @map("max_retries")
+  lastRetryAt     DateTime?       @map("last_retry_at")
+
+  receivedAt      DateTime        @default(now()) @map("received_at")
+  processedAt     DateTime?       @map("processed_at")
+  processingError String?         @map("processing_error") @db.Text
+
+  // Webhook entity linkage & security
+  paymentId        String?   @map("payment_id")
+  providerEventAt  DateTime? @map("provider_event_at")
+  signatureValid   Boolean   @default(false) @map("signature_valid")
+  signatureError   String?   @map("signature_error")
+
+  payment          Payment?  @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  statusHistory    PaymentStatusHistory[]
+
+  @@index([provider, receivedAt])
+  @@index([status, retryCount])
+  @@index([eventType])
+  @@index([paymentId])
+  @@map("webhook_events")
+}
+
+model Deposit {
+  id          String        @id @default(uuid())
+  walletId    String        @map("wallet_id")
+  paymentId   String        @unique @map("payment_id")
+
+  currency    Currency      @default(IDR)
+  amountMinor BigInt        @map("amount_minor") @db.BigInt
+
+  status      DepositStatus @default(PENDING)
+  completedAt DateTime?     @map("completed_at")
+
+  wallet      Wallet        @relation(fields: [walletId], references: [id], onDelete: Restrict)
+  payment     Payment       @relation("PaymentDeposit", fields: [paymentId], references: [id], onDelete: Restrict)
+
+  // Journal-centric: back relation (optional 1:1)
+  journal     LedgerJournal? @relation("DepositJournal")
+
+  @@index([walletId, status])
+  @@map("deposits")
+}
