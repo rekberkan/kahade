@@ -588,6 +588,55 @@ ALTER TABLE orders
 ALTER TABLE orders 
   ADD CONSTRAINT orders_holding_period_positive CHECK (holding_period_days > 0);
 
+-- ========================================================================
+-- PART 6B: BASIC DATA QUALITY CHECKS
+-- ========================================================================
+
+ALTER TABLE wallets
+  DROP CONSTRAINT IF EXISTS wallets_balance_non_negative;
+
+ALTER TABLE wallets
+  ADD CONSTRAINT wallets_balance_non_negative
+  CHECK (balance_minor >= 0 AND locked_minor >= 0);
+
+ALTER TABLE ratings
+  DROP CONSTRAINT IF EXISTS ratings_value_range;
+
+ALTER TABLE ratings
+  ADD CONSTRAINT ratings_value_range
+  CHECK (rating >= 1 AND rating <= 5);
+
+ALTER TABLE vouchers
+  DROP CONSTRAINT IF EXISTS vouchers_discount_percent_range;
+
+ALTER TABLE vouchers
+  ADD CONSTRAINT vouchers_discount_percent_range
+  CHECK (discount_percent IS NULL OR (discount_percent >= 0 AND discount_percent <= 100));
+
+ALTER TABLE promos
+  DROP CONSTRAINT IF EXISTS promos_discount_percent_range;
+
+ALTER TABLE promos
+  ADD CONSTRAINT promos_discount_percent_range
+  CHECK (discount_percent IS NULL OR (discount_percent >= 0 AND discount_percent <= 100));
+
+ALTER TABLE vouchers
+  DROP CONSTRAINT IF EXISTS vouchers_usage_bounds;
+
+ALTER TABLE vouchers
+  ADD CONSTRAINT vouchers_usage_bounds
+  CHECK (current_usages >= 0 AND current_usages <= max_usages);
+
+ALTER TABLE promos
+  DROP CONSTRAINT IF EXISTS promos_usage_bounds;
+
+ALTER TABLE promos
+  ADD CONSTRAINT promos_usage_bounds
+  CHECK (
+    current_usages >= 0 AND
+    (max_total_usages IS NULL OR current_usages <= max_total_usages)
+  );
+
 -- ============================================================================
 -- PART 7: PAYMENT STATUS MONOTONIC (STATE MACHINE)
 -- ============================================================================

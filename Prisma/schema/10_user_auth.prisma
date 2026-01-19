@@ -85,7 +85,9 @@ model User {
   settlementsAsBuyer   OrderSettlement[]     @relation("SettlementBuyer")
 
   @@index([kycStatus])
+  @@index([kycStatus, emailVerifiedAt])
   @@index([deletedAt])
+  @@index([isAdmin, deletedAt])
   @@map("users")
 }
 

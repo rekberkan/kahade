@@ -34,6 +34,7 @@ model Payment {
   @@index([orderId])
   @@index([provider, providerInvoiceId])
   @@index([userId, createdAt])
+  @@index([userId, status, createdAt])
   @@map("payments")
 }
 

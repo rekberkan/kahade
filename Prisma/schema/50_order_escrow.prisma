@@ -62,6 +62,8 @@ model Order {
   @@index([autoReleaseAt])
   @@index([inviteExpiresAt])
   @@index([status, autoReleaseAt])
+  @@index([initiatorId, status, createdAt])
+  @@index([counterpartyId, status, createdAt])
   @@map("orders")
 }
 
