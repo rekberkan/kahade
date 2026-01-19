@@ -1,0 +1,34 @@
+// ============================================================================
+// RATING & REVIEW MODELS
+// ============================================================================
+
+model Rating {
+  id          String    @id @default(uuid())
+  orderId     String    @map("order_id")
+  fromUserId  String    @map("from_user_id")
+  toUserId    String    @map("to_user_id")
+
+  // Rating constrained 1-5 (enforce in application + DB check constraint)
+  rating      Int
+  reviewText  String?   @map("review_text") @db.Text
+
+  // Verification & moderation
+  isVerifiedPurchase Boolean   @default(true) @map("is_verified_purchase")
+  helpfulCount       Int       @default(0) @map("helpful_count")
+  reportedCount      Int       @default(0) @map("reported_count")
+  isHidden           Boolean   @default(false) @map("is_hidden")
+  moderatedAt        DateTime? @map("moderated_at")
+  moderatedBy        String?   @map("moderated_by")
+
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  order       Order     @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  fromUser    User      @relation("RatingFrom", fields: [fromUserId], references: [id], onDelete: Restrict)
+  toUser      User      @relation("RatingTo", fields: [toUserId], references: [id], onDelete: Restrict)
+  moderator   User?     @relation("RatingModerator", fields: [moderatedBy], references: [id], onDelete: SetNull)
+
+  @@unique([orderId, fromUserId])
+  @@index([toUserId, createdAt])
+  @@index([isHidden, reportedCount])
+  @@map("ratings")
+}
