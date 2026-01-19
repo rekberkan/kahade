@@ -1,0 +1,3 @@
+# AuditTrail
+
+Placeholder documentation content.

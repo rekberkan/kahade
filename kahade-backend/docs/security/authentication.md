@@ -1,0 +1,3 @@
+# Authentication
+
+Placeholder documentation content.
