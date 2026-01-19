@@ -1,0 +1,104 @@
+// ============================================================================
+// BANK & WITHDRAWAL MODELS
+// ============================================================================
+
+model BankAccount {
+  id                 String    @id @default(uuid())
+  userId             String    @map("user_id")
+  bankName           String    @map("bank_name")
+
+  // Encrypted data
+  accountNumberEnc   String    @map("account_number_enc") @db.Text
+  accountNumberLast4 String    @map("account_number_last4")
+  accountNameEnc     String    @map("account_name_enc") @db.Text
+  keyVersion         Int       @default(1) @map("key_version")
+
+  isDefault          Boolean   @default(false) @map("is_default")
+
+  // Verification & status
+  isActive           Boolean   @default(true) @map("is_active")
+  isVerified         Boolean   @default(false) @map("is_verified")
+  verifiedAt         DateTime? @map("verified_at")
+  verificationMethod String?   @map("verification_method")
+  lastUsedAt         DateTime? @map("last_used_at")
+
+  deletedAt          DateTime? @map("deleted_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  user               User      @relation(fields: [userId], references: [id], onDelete: Restrict)
+  withdrawals        Withdrawal[]
+
+  @@index([userId, isDefault])
+  @@index([userId, isActive, isDefault])
+  @@map("bank_accounts")
+}
+
+model Withdrawal {
+  id                 String            @id @default(uuid())
+  walletId           String            @map("wallet_id")
+  userId             String            @map("user_id")
+  bankAccountId      String            @map("bank_account_id")
+
+  currency           Currency          @default(IDR)
+  amountMinor        BigInt            @map("amount_minor") @db.BigInt
+
+  status             WithdrawalStatus  @default(PENDING)
+
+  // Review & approval workflow
+  reviewedBy         String?           @map("reviewed_by")
+  reviewStartedAt    DateTime?         @map("review_started_at")
+  reviewNotes        String?           @map("review_notes") @db.Text
+
+  adminNotes         String?           @map("admin_notes") @db.Text
+  riskHoldUntil      DateTime?         @map("risk_hold_until")
+
+  // Multi-approval for large amounts
+  requiresMultipleApprovals Boolean    @default(false) @map("requires_multiple_approvals")
+  approvalCount      Int               @default(0) @map("approval_count")
+  requiredApprovals  Int               @default(1) @map("required_approvals")
+
+  approvedBy         String?           @map("approved_by")
+  approvedAt         DateTime?         @map("approved_at")
+  rejectedAt         DateTime?         @map("rejected_at")
+
+  // Provider disbursement
+  providerDisbursementId String?       @map("provider_disbursement_id")
+
+  requestedAt        DateTime          @default(now()) @map("requested_at")
+  processedAt        DateTime?         @map("processed_at")
+
+  // Idempotency
+  idempotencyKey     String?           @unique @map("idempotency_key")
+
+  wallet             Wallet            @relation(fields: [walletId], references: [id], onDelete: Restrict)
+  user               User              @relation("WithdrawalRequester", fields: [userId], references: [id], onDelete: Restrict)
+  bankAccount        BankAccount       @relation(fields: [bankAccountId], references: [id], onDelete: Restrict)
+  approver           User?             @relation("WithdrawalApprover", fields: [approvedBy], references: [id], onDelete: SetNull)
+  reviewer           User?             @relation("WithdrawalReviewer", fields: [reviewedBy], references: [id], onDelete: SetNull)
+  approvals          WithdrawalApproval[]
+
+  // Journal-centric: back relation (optional 1:1)
+  journal            LedgerJournal?    @relation("WithdrawalJournal")
+
+  @@index([status, requestedAt])
+  @@index([walletId, requestedAt])
+  @@index([requiresMultipleApprovals, approvalCount])
+  @@index([userId, requestedAt])
+  @@map("withdrawals")
+}
+
+model WithdrawalApproval {
+  id            String     @id @default(uuid())
+  withdrawalId  String     @map("withdrawal_id")
+  approvedBy    String     @map("approved_by")
+  notes         String?    @db.Text
+  approvedAt    DateTime   @default(now()) @map("approved_at")
+
+  withdrawal    Withdrawal @relation(fields: [withdrawalId], references: [id], onDelete: Cascade)
+  approver      User       @relation("WithdrawalApprovalUser", fields: [approvedBy], references: [id], onDelete: Restrict)
+
+  @@unique([withdrawalId, approvedBy])
+  @@index([withdrawalId])
+  @@map("withdrawal_approvals")
+}
