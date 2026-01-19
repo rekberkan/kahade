@@ -1,30 +1,44 @@
-import { Injectable, ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import {
+  ExecutionContext,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { Reflector } from '@nestjs/core';
-import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
+import { TokenBlacklistService } from '@core/auth/token-blacklist.service';
 
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
-  constructor(private reflector: Reflector) {
+  constructor(private readonly tokenBlacklistService: TokenBlacklistService) {
     super();
   }
 
-  canActivate(context: ExecutionContext) {
-    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
-
-    if (isPublic) {
-      return true;
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    // First, validate JWT with Passport
+    const canActivate = await super.canActivate(context);
+    
+    if (!canActivate) {
+      return false;
     }
 
-    return super.canActivate(context);
+    // SECURITY FIX: Check if token is blacklisted
+    const request = context.switchToHttp().getRequest();
+    const authHeader = request.headers.authorization;
+    
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.substring(7);
+      const isBlacklisted = await this.tokenBlacklistService.isTokenBlacklisted(token);
+      
+      if (isBlacklisted) {
+        throw new UnauthorizedException('Token has been revoked');
+      }
+    }
+
+    return true;
   }
 
-  handleRequest(err, user, info) {
+  handleRequest(err: any, user: any, info: any) {
     if (err || !user) {
-      throw err || new UnauthorizedException('Invalid or expired token');
+      throw err || new UnauthorizedException('Authentication failed');
     }
     return user;
   }

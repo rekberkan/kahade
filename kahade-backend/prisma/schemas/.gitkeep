@@ -1,2 +1,0 @@
-# This directory was used for schema partitions but Prisma doesn't support import syntax
-# All schemas have been merged into ../schema.prisma
