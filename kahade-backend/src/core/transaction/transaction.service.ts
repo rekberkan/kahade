@@ -1,32 +1,44 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+  Logger,
+} from '@nestjs/common';
 import { TransactionRepository } from './transaction.repository';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { UpdateTransactionStatusDto } from './dto/update-transaction-status.dto';
 import { PaginationUtil, PaginationParams } from '@common/utils/pagination.util';
+import { DecimalUtil } from '@common/utils/decimal.util';
 import { BlockchainService } from '@integrations/blockchain/blockchain.service';
 import { PaymentService } from '@integrations/payment/payment.service';
+import { ITransactionResponse } from '@common/interfaces/transaction.interface';
+import { Transaction, TransactionStatus } from '@prisma/client';
 
 @Injectable()
 export class TransactionService {
+  private readonly logger = new Logger(TransactionService.name);
+
   constructor(
     private readonly transactionRepository: TransactionRepository,
     private readonly blockchainService: BlockchainService,
     private readonly paymentService: PaymentService,
   ) {}
 
-  async create(userId: string, createTransactionDto: CreateTransactionDto) {
+  async create(userId: string, createTransactionDto: CreateTransactionDto): Promise<ITransactionResponse> {
     // Create transaction in database
     const transaction = await this.transactionRepository.create({
       ...createTransactionDto,
       buyerId: userId,
-      status: 'PENDING',
+      status: 'PENDING' as TransactionStatus,
     });
 
     // Record on blockchain for transparency
     try {
+      const amountNumber = DecimalUtil.toNumber(transaction.amount);
       const blockchainTx = await this.blockchainService.recordTransaction({
         transactionId: transaction.id,
-        amount: transaction.amount,
+        amount: amountNumber,
         buyerId: userId,
         sellerId: transaction.sellerId,
       });
@@ -35,14 +47,16 @@ export class TransactionService {
         blockchainTxHash: blockchainTx.hash,
       });
     } catch (error) {
-      console.error('Failed to record on blockchain:', error);
+      this.logger.error(`Failed to record on blockchain: ${error.message}`);
+      // Don't fail transaction creation if blockchain fails
     }
 
-    return transaction;
+    return this.transformToResponse(transaction);
   }
 
-  async findOne(id: string, userId: string) {
+  async findOne(id: string, userId: string): Promise<ITransactionResponse> {
     const transaction = await this.transactionRepository.findById(id);
+    
     if (!transaction) {
       throw new NotFoundException('Transaction not found');
     }
@@ -51,7 +65,7 @@ export class TransactionService {
       throw new ForbiddenException('Not authorized to view this transaction');
     }
 
-    return transaction;
+    return this.transformToResponse(transaction);
   }
 
   async findAllByUser(userId: string, params: PaginationParams) {
@@ -60,22 +74,42 @@ export class TransactionService {
 
     const { transactions, total } = await this.transactionRepository.findByUser(userId, skip, limit);
 
-    return PaginationUtil.paginate(transactions, total, page, limit);
+    const transformedTransactions = transactions.map((t) => this.transformToResponse(t));
+
+    return PaginationUtil.paginate(transformedTransactions, total, page, limit);
   }
 
-  async updateStatus(id: string, userId: string, updateStatusDto: UpdateTransactionStatusDto) {
-    const transaction = await this.findOne(id, userId);
+  async updateStatus(
+    id: string,
+    userId: string,
+    updateStatusDto: UpdateTransactionStatusDto,
+  ): Promise<ITransactionResponse> {
+    const transaction = await this.transactionRepository.findById(id);
+    
+    if (!transaction) {
+      throw new NotFoundException('Transaction not found');
+    }
+
+    if (transaction.buyerId !== userId && transaction.sellerId !== userId) {
+      throw new ForbiddenException('Not authorized to update this transaction');
+    }
 
     // Validate status transition
     this.validateStatusTransition(transaction.status, updateStatusDto.status);
 
-    return this.transactionRepository.update(id, {
+    const updated = await this.transactionRepository.update(id, {
       status: updateStatusDto.status,
     });
+
+    return this.transformToResponse(updated);
   }
 
-  async confirmPayment(id: string, userId: string) {
-    const transaction = await this.findOne(id, userId);
+  async confirmPayment(id: string, userId: string): Promise<ITransactionResponse> {
+    const transaction = await this.transactionRepository.findById(id);
+    
+    if (!transaction) {
+      throw new NotFoundException('Transaction not found');
+    }
 
     if (transaction.sellerId !== userId) {
       throw new ForbiddenException('Only seller can confirm payment');
@@ -85,14 +119,20 @@ export class TransactionService {
       throw new BadRequestException('Invalid transaction status');
     }
 
-    return this.transactionRepository.update(id, {
-      status: 'PAYMENT_CONFIRMED',
+    const updated = await this.transactionRepository.update(id, {
+      status: 'PAYMENT_CONFIRMED' as TransactionStatus,
       paidAt: new Date(),
     });
+
+    return this.transformToResponse(updated);
   }
 
-  async releaseFunds(id: string, userId: string) {
-    const transaction = await this.findOne(id, userId);
+  async releaseFunds(id: string, userId: string): Promise<ITransactionResponse> {
+    const transaction = await this.transactionRepository.findById(id);
+    
+    if (!transaction) {
+      throw new NotFoundException('Transaction not found');
+    }
 
     if (transaction.buyerId !== userId) {
       throw new ForbiddenException('Only buyer can release funds');
@@ -102,45 +142,70 @@ export class TransactionService {
       throw new BadRequestException('Payment must be confirmed first');
     }
 
-    // Process payment to seller
+    // Process payment to seller - convert Decimal to number
     try {
-      const payment = await this.paymentService.transferToSeller({
-        amount: transaction.amount,
+      const amountNumber = DecimalUtil.toNumber(transaction.amount);
+      
+      await this.paymentService.transferToSeller({
+        amount: amountNumber,
         sellerId: transaction.sellerId,
         transactionId: transaction.id,
       });
 
-      return this.transactionRepository.update(id, {
-        status: 'COMPLETED',
+      const updated = await this.transactionRepository.update(id, {
+        status: 'COMPLETED' as TransactionStatus,
         completedAt: new Date(),
       });
+
+      return this.transformToResponse(updated);
     } catch (error) {
+      this.logger.error(`Failed to release funds: ${error.message}`);
       throw new BadRequestException('Failed to release funds');
     }
   }
 
-  async cancel(id: string, userId: string) {
-    const transaction = await this.findOne(id, userId);
+  async cancel(id: string, userId: string): Promise<ITransactionResponse> {
+    const transaction = await this.transactionRepository.findById(id);
+    
+    if (!transaction) {
+      throw new NotFoundException('Transaction not found');
+    }
+
+    if (transaction.buyerId !== userId && transaction.sellerId !== userId) {
+      throw new ForbiddenException('Not authorized to cancel this transaction');
+    }
 
     if (transaction.status === 'COMPLETED') {
       throw new BadRequestException('Cannot cancel completed transaction');
     }
 
-    return this.transactionRepository.update(id, {
-      status: 'CANCELLED',
+    const updated = await this.transactionRepository.update(id, {
+      status: 'CANCELLED' as TransactionStatus,
       cancelledAt: new Date(),
     });
+
+    return this.transformToResponse(updated);
   }
 
-  private validateStatusTransition(currentStatus: string, newStatus: string) {
+  private validateStatusTransition(currentStatus: string, newStatus: string): void {
     const validTransitions: Record<string, string[]> = {
       PENDING: ['PAYMENT_CONFIRMED', 'CANCELLED'],
       PAYMENT_CONFIRMED: ['COMPLETED', 'DISPUTED', 'CANCELLED'],
-      DISPUTED: ['COMPLETED', 'CANCELLED'],
+      DISPUTED: ['COMPLETED', 'CANCELLED', 'REFUNDED'],
+      CANCELLED: [],
+      COMPLETED: [],
+      REFUNDED: [],
     };
 
     if (!validTransitions[currentStatus]?.includes(newStatus)) {
       throw new BadRequestException(`Invalid status transition from ${currentStatus} to ${newStatus}`);
     }
+  }
+
+  private transformToResponse(transaction: Transaction & any): ITransactionResponse {
+    return {
+      ...transaction,
+      amount: DecimalUtil.toNumber(transaction.amount), // Convert Decimal to number
+    };
   }
 }
