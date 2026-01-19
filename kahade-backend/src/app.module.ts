@@ -1,10 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
-import { BullModule } from '@nestjs/bull';
-import { APP_GUARD } from '@nestjs/core';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
+import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 
 // Configuration
 import appConfig from './config/app.config';
@@ -14,6 +10,7 @@ import redisConfig from './config/redis.config';
 import blockchainConfig from './config/blockchain.config';
 import emailConfig from './config/email.config';
 import paymentConfig from './config/payment.config';
+import queueConfig from './config/queue.config';
 
 // Infrastructure
 import { DatabaseModule } from './infrastructure/database/database.module';
@@ -28,7 +25,7 @@ import { TransactionModule } from './core/transaction/transaction.module';
 import { DisputeModule } from './core/dispute/dispute.module';
 import { NotificationModule } from './core/notification/notification.module';
 
-// Integrations
+// Integration Modules
 import { BlockchainModule } from './integrations/blockchain/blockchain.module';
 import { PaymentModule } from './integrations/payment/payment.module';
 import { EmailModule } from './integrations/email/email.module';
@@ -36,11 +33,9 @@ import { EmailModule } from './integrations/email/email.module';
 // Jobs
 import { JobsModule } from './jobs/jobs.module';
 
-// Health Check
-import { HealthModule } from './health/health.module';
-
-// Security
-import { rateLimitConfig } from './security/rate-limit.config';
+// Common
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 
 @Module({
   imports: [
@@ -55,26 +50,12 @@ import { rateLimitConfig } from './security/rate-limit.config';
         blockchainConfig,
         emailConfig,
         paymentConfig,
+        queueConfig,
       ],
       envFilePath: [
         `.env.${process.env.NODE_ENV || 'development'}`,
         '.env',
       ],
-    }),
-
-    // SECURITY FIX: Rate Limiting with proper config
-    ThrottlerModule.forRoot(rateLimitConfig),
-
-    // Queue Management
-    BullModule.forRootAsync({
-      useFactory: () => ({
-        redis: {
-          host: process.env.REDIS_HOST || 'localhost',
-          port: parseInt(process.env.REDIS_PORT || '6379'),
-          password: process.env.REDIS_PASSWORD,
-        },
-        prefix: process.env.QUEUE_PREFIX || 'kahade',
-      }),
     }),
 
     // Infrastructure
@@ -90,24 +71,22 @@ import { rateLimitConfig } from './security/rate-limit.config';
     DisputeModule,
     NotificationModule,
 
-    // Integrations
+    // Integration Modules
     BlockchainModule,
     PaymentModule,
     EmailModule,
 
-    // Jobs (Background Processors)
+    // Jobs
     JobsModule,
-
-    // Health Check
-    HealthModule,
   ],
-  controllers: [AppController],
   providers: [
-    AppService,
-    // SECURITY FIX: Apply ThrottlerGuard globally
     {
-      provide: APP_GUARD,
-      useClass: ThrottlerGuard,
+      provide: APP_FILTER,
+      useClass: HttpExceptionFilter,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: LoggingInterceptor,
     },
   ],
 })
