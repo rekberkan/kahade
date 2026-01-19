@@ -1,0 +1,30 @@
+// User and Authentication models
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String
+  phone     String?
+  avatar    String?
+  bio       String?
+  role      UserRole @default(USER)
+  status    UserStatus @default(ACTIVE)
+  
+  // Email verification
+  emailVerified Boolean @default(false)
+  emailVerifiedAt DateTime?
+  
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  lastLoginAt DateTime?
+  
+  // Relations
+  buyerTransactions  Transaction[] @relation("BuyerTransactions")
+  sellerTransactions Transaction[] @relation("SellerTransactions")
+  disputes          Dispute[]
+  notifications     Notification[]
+  
+  @@map("users")
+}
