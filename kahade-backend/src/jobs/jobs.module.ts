@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, Logger } from '@nestjs/common';
 import { BullModule } from '@nestjs/bull';
 import { EmailProcessor } from './email.processor';
 import { NotificationProcessor } from './notification.processor';
@@ -8,18 +8,28 @@ import { NotificationModule } from '@core/notification/notification.module';
 import { BlockchainModule } from '@integrations/blockchain/blockchain.module';
 import { QUEUE_NAMES } from '@common/constants';
 
+const useRedis = process.env.REDIS_ENABLED === 'true';
+
 @Module({
   imports: [
-    BullModule.registerQueue(
-      { name: QUEUE_NAMES.EMAIL },
-      { name: QUEUE_NAMES.NOTIFICATION },
-      { name: QUEUE_NAMES.BLOCKCHAIN },
-    ),
+    ...(useRedis ? [
+      BullModule.registerQueue(
+        { name: QUEUE_NAMES.EMAIL },
+        { name: QUEUE_NAMES.NOTIFICATION },
+        { name: QUEUE_NAMES.BLOCKCHAIN },
+      ),
+    ] : []),
     EmailModule,
     NotificationModule,
     BlockchainModule,
   ],
-  providers: [EmailProcessor, NotificationProcessor, BlockchainProcessor],
-  exports: [BullModule],
+  providers: useRedis ? [EmailProcessor, NotificationProcessor, BlockchainProcessor] : [],
+  exports: useRedis ? [BullModule] : [],
 })
-export class JobsModule {}
+export class JobsModule {
+  constructor() {
+    if (!useRedis) {
+      Logger.warn('Job processors disabled (Redis not available)', 'JobsModule');
+    }
+  }
+}

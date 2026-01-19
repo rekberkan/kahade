@@ -108,7 +108,7 @@ async function bootstrap() {
     logger.log(`📚 Swagger documentation: http://localhost:${port}/${apiPrefix}/docs`);
   }
 
-  await app.listen(port);
+  await app.listen(port, '0.0.0.0');
   
   // SECURITY FIX: Remove verbose console.log in production
   if (nodeEnv !== 'production') {
