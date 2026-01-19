@@ -1,0 +1,2 @@
+# Database migrations will be generated here
+# Run: yarn prisma migrate dev --name migration_name
