@@ -1,7 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { BullModule } from '@nestjs/bull';
+import { APP_GUARD } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -61,7 +62,7 @@ import { rateLimitConfig } from './security/rate-limit.config';
       ],
     }),
 
-    // Rate Limiting
+    // SECURITY FIX: Rate Limiting with proper config
     ThrottlerModule.forRoot(rateLimitConfig),
 
     // Queue Management
@@ -101,6 +102,13 @@ import { rateLimitConfig } from './security/rate-limit.config';
     HealthModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    // SECURITY FIX: Apply ThrottlerGuard globally
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+  ],
 })
 export class AppModule {}
