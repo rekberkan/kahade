@@ -72,7 +72,7 @@ export class PaymentService {
     }
   }
 
-  async refundToB buyer(data: {
+  async refundToBuyer(data: {
     amount: number;
     buyerId: string;
     transactionId: string;
