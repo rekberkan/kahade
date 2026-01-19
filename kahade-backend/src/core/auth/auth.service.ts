@@ -5,6 +5,18 @@ import { UserService } from '../user/user.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { HashUtil } from '@common/utils/hash.util';
+import { IUserResponse } from '@common/interfaces/user.interface';
+
+export interface IAuthResponse {
+  user: IUserResponse;
+  accessToken: string;
+  refreshToken: string;
+}
+
+export interface ITokenPair {
+  accessToken: string;
+  refreshToken: string;
+}
 
 @Injectable()
 export class AuthService {
@@ -14,7 +26,7 @@ export class AuthService {
     private readonly configService: ConfigService,
   ) {}
 
-  async register(registerDto: RegisterDto) {
+  async register(registerDto: RegisterDto): Promise<IAuthResponse> {
     const existingUser = await this.userService.findByEmail(registerDto.email);
     if (existingUser) {
       throw new BadRequestException('Email already exists');
@@ -26,27 +38,28 @@ export class AuthService {
       password: hashedPassword,
     });
 
-    const { accessToken, refreshToken } = await this.generateTokens(user.id, user.email);
+    const tokens = await this.generateTokens(user.id, user.email);
 
     return {
-      user: this.sanitizeUser(user),
-      accessToken,
-      refreshToken,
+      user: this.userService.sanitizeUser(user),
+      ...tokens,
     };
   }
 
-  async login(loginDto: LoginDto) {
+  async login(loginDto: LoginDto): Promise<IAuthResponse> {
     const user = await this.validateUser(loginDto.email, loginDto.password);
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const { accessToken, refreshToken } = await this.generateTokens(user.id, user.email);
+    // Update last login
+    await this.userService.updateLastLogin(user.id);
+
+    const tokens = await this.generateTokens(user.id, user.email);
 
     return {
-      user: this.sanitizeUser(user),
-      accessToken,
-      refreshToken,
+      user: this.userService.sanitizeUser(user),
+      ...tokens,
     };
   }
 
@@ -64,7 +77,7 @@ export class AuthService {
     return user;
   }
 
-  async refreshToken(refreshToken: string) {
+  async refreshToken(refreshToken: string): Promise<ITokenPair> {
     try {
       const payload = this.jwtService.verify(refreshToken, {
         secret: this.configService.get<string>('jwt.refreshSecret'),
@@ -82,30 +95,26 @@ export class AuthService {
     }
   }
 
-  async logout(userId: string) {
+  async logout(userId: string): Promise<{ message: string }> {
     // Here you could invalidate tokens in Redis or database
+    // For now, just return success message
     return { message: 'Successfully logged out' };
   }
 
-  private async generateTokens(userId: string, email: string) {
+  private async generateTokens(userId: string, email: string): Promise<ITokenPair> {
     const payload = { sub: userId, email };
 
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(payload, {
         secret: this.configService.get<string>('jwt.secret'),
-        expiresIn: this.configService.get<string>('jwt.expiresIn'),
+        expiresIn: this.configService.get<string>('jwt.expiresIn', '15m'),
       }),
       this.jwtService.signAsync(payload, {
         secret: this.configService.get<string>('jwt.refreshSecret'),
-        expiresIn: this.configService.get<string>('jwt.refreshExpiresIn'),
+        expiresIn: this.configService.get<string>('jwt.refreshExpiresIn', '7d'),
       }),
     ]);
 
     return { accessToken, refreshToken };
-  }
-
-  private sanitizeUser(user: any) {
-    const { password, ...result } = user;
-    return result;
   }
 }
