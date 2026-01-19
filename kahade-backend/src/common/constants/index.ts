@@ -1,0 +1,35 @@
+export const USER_ROLES = {
+  ADMIN: 'ADMIN',
+  USER: 'USER',
+  MODERATOR: 'MODERATOR',
+} as const;
+
+export const TRANSACTION_STATUS = {
+  PENDING: 'PENDING',
+  PAYMENT_CONFIRMED: 'PAYMENT_CONFIRMED',
+  COMPLETED: 'COMPLETED',
+  DISPUTED: 'DISPUTED',
+  CANCELLED: 'CANCELLED',
+  REFUNDED: 'REFUNDED',
+} as const;
+
+export const DISPUTE_STATUS = {
+  PENDING: 'PENDING',
+  UNDER_REVIEW: 'UNDER_REVIEW',
+  RESOLVED: 'RESOLVED',
+  REJECTED: 'REJECTED',
+} as const;
+
+export const NOTIFICATION_TYPES = {
+  TRANSACTION: 'TRANSACTION',
+  DISPUTE: 'DISPUTE',
+  PAYMENT: 'PAYMENT',
+  SYSTEM: 'SYSTEM',
+} as const;
+
+export const QUEUE_NAMES = {
+  EMAIL: 'email',
+  NOTIFICATION: 'notification',
+  BLOCKCHAIN: 'blockchain',
+  PAYMENT: 'payment',
+} as const;
