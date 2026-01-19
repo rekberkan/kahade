@@ -48,6 +48,7 @@ model PaymentStatusHistory {
   webhookEventId String?        @map("webhook_event_id")
 
   payment        Payment        @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  webhookEvent   WebhookEvent?  @relation(fields: [webhookEventId], references: [id], onDelete: SetNull)
 
   @@index([paymentId, changedAt])
   @@index([webhookEventId])
@@ -77,6 +78,7 @@ model WebhookEvent {
   signatureError   String?   @map("signature_error")
 
   payment          Payment?  @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  statusHistory    PaymentStatusHistory[]
 
   @@index([provider, receivedAt])
   @@index([status, retryCount])
