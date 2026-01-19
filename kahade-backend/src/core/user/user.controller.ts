@@ -1,22 +1,11 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Put,
-  Delete,
-  Body,
-  Param,
-  Query,
-  UseGuards,
-} from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { Controller, Get, Put, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { UserService } from './user.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
 import { RolesGuard } from '@common/guards/roles.guard';
-import { Roles } from '@common/decorators/roles.decorator';
 import { CurrentUser } from '@common/decorators/current-user.decorator';
-import { PaginationParams } from '@common/utils/pagination.util';
+import { Roles } from '@common/decorators/roles.decorator';
 
 @ApiTags('users')
 @Controller('users')
@@ -27,9 +16,8 @@ export class UserController {
 
   @Get('profile')
   @ApiOperation({ summary: 'Get current user profile' })
-  @ApiResponse({ status: 200, description: 'User profile retrieved successfully' })
+  @ApiResponse({ status: 200, description: 'Returns user profile' })
   async getProfile(@CurrentUser('id') userId: string) {
-    // SECURITY FIX: Always sanitize to prevent password leak
     const user = await this.userService.findById(userId);
     return this.userService.sanitizeUser(user);
   }
@@ -41,43 +29,32 @@ export class UserController {
     return this.userService.update(userId, updateUserDto);
   }
 
-  @Get()
-  @UseGuards(RolesGuard)
-  @Roles('ADMIN')
-  @ApiOperation({ summary: 'Get all users (Admin only)' })
-  @ApiResponse({ status: 200, description: 'List of users' })
-  async findAll(@Query() params: PaginationParams) {
-    return this.userService.findAll(params);
-  }
-
   @Get(':id')
-  @UseGuards(RolesGuard)
-  @Roles('ADMIN')
-  @ApiOperation({ summary: 'Get user by ID (Admin only)' })
-  @ApiResponse({ status: 200, description: 'User found' })
+  @ApiOperation({ summary: 'Get user by ID' })
+  @ApiResponse({ status: 200, description: 'Returns user' })
   @ApiResponse({ status: 404, description: 'User not found' })
   async findOne(@Param('id') id: string) {
-    // SECURITY FIX: Always sanitize to prevent password leak
     const user = await this.userService.findById(id);
     return this.userService.sanitizeUser(user);
   }
 
-  @Put(':id')
+  @Get()
   @UseGuards(RolesGuard)
   @Roles('ADMIN')
-  @ApiOperation({ summary: 'Update user by ID (Admin only)' })
-  @ApiResponse({ status: 200, description: 'User updated' })
-  async update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
-    return this.userService.update(id, updateUserDto);
+  @ApiOperation({ summary: 'Get all users (Admin only)' })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiResponse({ status: 200, description: 'Returns paginated users' })
+  async findAll(@Query('page') page: number = 1, @Query('limit') limit: number = 10) {
+    return this.userService.findAll({ page, limit });
   }
 
   @Delete(':id')
   @UseGuards(RolesGuard)
   @Roles('ADMIN')
-  @ApiOperation({ summary: 'Delete user by ID (Admin only)' })
-  @ApiResponse({ status: 200, description: 'User deleted' })
+  @ApiOperation({ summary: 'Delete user (Admin only)' })
+  @ApiResponse({ status: 200, description: 'User deleted successfully' })
   async delete(@Param('id') id: string) {
-    // FIX: Changed from remove() to delete() to match service method
     await this.userService.delete(id);
     return { message: 'User deleted successfully' };
   }

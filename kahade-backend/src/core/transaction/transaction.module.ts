@@ -10,6 +10,6 @@ import { PaymentModule } from '@integrations/payment/payment.module';
   imports: [DatabaseModule, BlockchainModule, PaymentModule],
   controllers: [TransactionController],
   providers: [TransactionService, TransactionRepository],
-  exports: [TransactionService],
+  exports: [TransactionService, TransactionRepository],
 })
 export class TransactionModule {}
