@@ -1,12 +1,12 @@
-import { Controller, Get, Post, Put, Body, Param, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { Controller, Get, Post, Put, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { DisputeService } from './dispute.service';
 import { CreateDisputeDto } from './dto/create-dispute.dto';
 import { ResolveDisputeDto } from './dto/resolve-dispute.dto';
 import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
+import { RolesGuard } from '@common/guards/roles.guard';
 import { CurrentUser } from '@common/decorators/current-user.decorator';
 import { Roles } from '@common/decorators/roles.decorator';
-import { RolesGuard } from '@common/guards/roles.guard';
 
 @ApiTags('disputes')
 @Controller('disputes')
@@ -16,22 +16,28 @@ export class DisputeController {
   constructor(private readonly disputeService: DisputeService) {}
 
   @Post()
-  @ApiOperation({ summary: 'Create a dispute for a transaction' })
+  @ApiOperation({ summary: 'Create new dispute' })
   @ApiResponse({ status: 201, description: 'Dispute created successfully' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
   async create(@CurrentUser('id') userId: string, @Body() createDisputeDto: CreateDisputeDto) {
     return this.disputeService.create(userId, createDisputeDto);
   }
 
   @Get()
-  @ApiOperation({ summary: 'Get all disputes' })
   @UseGuards(RolesGuard)
   @Roles('ADMIN')
-  async findAll() {
-    return this.disputeService.findAll();
+  @ApiOperation({ summary: 'Get all disputes (Admin only)' })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiResponse({ status: 200, description: 'Returns paginated disputes' })
+  async findAll(@Query('page') page: number = 1, @Query('limit') limit: number = 10) {
+    return this.disputeService.findAll({ page, limit });
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get dispute by ID' })
+  @ApiResponse({ status: 200, description: 'Returns dispute' })
+  @ApiResponse({ status: 404, description: 'Dispute not found' })
   async findOne(@Param('id') id: string, @CurrentUser('id') userId: string) {
     return this.disputeService.findOne(id, userId);
   }
@@ -39,8 +45,8 @@ export class DisputeController {
   @Put(':id/resolve')
   @UseGuards(RolesGuard)
   @Roles('ADMIN')
-  @ApiOperation({ summary: 'Resolve a dispute' })
-  @ApiResponse({ status: 200, description: 'Dispute resolved' })
+  @ApiOperation({ summary: 'Resolve dispute (Admin only)' })
+  @ApiResponse({ status: 200, description: 'Dispute resolved successfully' })
   async resolve(@Param('id') id: string, @Body() resolveDisputeDto: ResolveDisputeDto) {
     return this.disputeService.resolve(id, resolveDisputeDto);
   }

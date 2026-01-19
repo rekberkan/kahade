@@ -1,17 +1,6 @@
 import { Request } from 'express';
+import { IAuthUser } from './user.interface';
 
-export interface RequestWithUser extends Request {
-  user: {
-    id: string;
-    email: string;
-    role: string;
-  };
-}
-
-export interface AuthenticatedRequest extends Request {
-  user: {
-    userId: string;
-    email: string;
-    role?: string;
-  };
+export interface IAuthRequest extends Request {
+  user: IAuthUser;
 }

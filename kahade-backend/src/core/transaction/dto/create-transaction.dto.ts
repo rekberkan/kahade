@@ -1,26 +1,26 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsNumber, IsPositive, IsOptional, IsUUID } from 'class-validator';
+import { IsString, IsNumber, IsUUID, IsOptional, Min } from 'class-validator';
 
 export class CreateTransactionDto {
-  @ApiProperty({ example: '550e8400-e29b-41d4-a716-446655440000' })
-  @IsUUID()
-  sellerId: string;
-
-  @ApiProperty({ example: 'iPhone 14 Pro Max' })
+  @ApiProperty({ example: 'MacBook Pro 2023' })
   @IsString()
   title: string;
 
-  @ApiProperty({ example: 'Brand new iPhone 14 Pro Max 256GB' })
+  @ApiProperty({ example: 'High-end laptop in excellent condition', required: false })
   @IsOptional()
   @IsString()
   description?: string;
 
-  @ApiProperty({ example: 15000000 })
+  @ApiProperty({ example: 25000000 })
   @IsNumber()
-  @IsPositive()
+  @Min(0)
   amount: number;
 
-  @ApiProperty({ example: 'IDR' })
+  @ApiProperty({ example: 'IDR', default: 'IDR' })
   @IsString()
-  currency: string;
+  currency: string = 'IDR';
+
+  @ApiProperty({ example: '550e8400-e29b-41d4-a716-446655440000' })
+  @IsUUID()
+  buyerId: string;
 }
