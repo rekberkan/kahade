@@ -1,0 +1,11 @@
+import { Injectable, Logger } from '@nestjs/common';
+
+@Injectable()
+export class ConnectionPoolService {
+  private readonly logger = new Logger(ConnectionPoolService.name);
+
+  async healthCheck(): Promise<{ status: string }> {
+    this.logger.debug('Health check called');
+    return { status: 'ok' };
+  }
+}
