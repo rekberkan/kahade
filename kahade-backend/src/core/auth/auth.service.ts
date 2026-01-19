@@ -6,6 +6,7 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { HashUtil } from '@common/utils/hash.util';
 import { IUserResponse } from '@common/interfaces/user.interface';
+import { TokenBlacklistService } from './token-blacklist.service';
 
 export interface IAuthResponse {
   user: IUserResponse;
@@ -24,6 +25,7 @@ export class AuthService {
     private readonly userService: UserService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly tokenBlacklistService: TokenBlacklistService,
   ) {}
 
   async register(registerDto: RegisterDto): Promise<IAuthResponse> {
@@ -39,6 +41,9 @@ export class AuthService {
     });
 
     const tokens = await this.generateTokens(user.id, user.email);
+
+    // SECURITY FIX: Store refresh token in Redis
+    await this.storeRefreshToken(user.id, tokens.refreshToken);
 
     return {
       user: this.userService.sanitizeUser(user),
@@ -56,6 +61,9 @@ export class AuthService {
     await this.userService.updateLastLogin(user.id);
 
     const tokens = await this.generateTokens(user.id, user.email);
+
+    // SECURITY FIX: Store refresh token in Redis
+    await this.storeRefreshToken(user.id, tokens.refreshToken);
 
     return {
       user: this.userService.sanitizeUser(user),
@@ -79,25 +87,50 @@ export class AuthService {
 
   async refreshToken(refreshToken: string): Promise<ITokenPair> {
     try {
+      // SECURITY FIX: Verify token exists in Redis before refresh
+      const userId = await this.tokenBlacklistService.validateRefreshToken(refreshToken);
+      if (!userId) {
+        throw new UnauthorizedException('Invalid or expired refresh token');
+      }
+
       const payload = this.jwtService.verify(refreshToken, {
         secret: this.configService.get<string>('jwt.refreshSecret'),
       });
+
+      if (payload.sub !== userId) {
+        throw new UnauthorizedException('Token mismatch');
+      }
 
       const user = await this.userService.findById(payload.sub);
       if (!user) {
         throw new UnauthorizedException('User not found');
       }
 
+      // SECURITY FIX: Revoke old refresh token (rotation)
+      await this.tokenBlacklistService.revokeRefreshToken(refreshToken);
+
+      // Generate new token pair
       const tokens = await this.generateTokens(user.id, user.email);
+
+      // Store new refresh token
+      await this.storeRefreshToken(user.id, tokens.refreshToken);
+
       return tokens;
     } catch (error) {
       throw new UnauthorizedException('Invalid refresh token');
     }
   }
 
-  async logout(userId: string): Promise<{ message: string }> {
-    // Here you could invalidate tokens in Redis or database
-    // For now, just return success message
+  async logout(userId: string, accessToken: string): Promise<{ message: string }> {
+    // SECURITY FIX: Blacklist the access token
+    const expiresIn = this.configService.get<string>('jwt.expiresIn', '15m');
+    const expiresInSeconds = this.parseExpirationToSeconds(expiresIn);
+    
+    await this.tokenBlacklistService.blacklistToken(accessToken, expiresInSeconds);
+
+    // Note: Refresh token revocation happens on next refresh attempt
+    // Or implement full logout with refresh token if provided
+
     return { message: 'Successfully logged out' };
   }
 
@@ -116,5 +149,30 @@ export class AuthService {
     ]);
 
     return { accessToken, refreshToken };
+  }
+
+  private async storeRefreshToken(userId: string, refreshToken: string): Promise<void> {
+    const expiresIn = this.configService.get<string>('jwt.refreshExpiresIn', '7d');
+    const expiresInSeconds = this.parseExpirationToSeconds(expiresIn);
+    
+    await this.tokenBlacklistService.storeRefreshToken(userId, refreshToken, expiresInSeconds);
+  }
+
+  private parseExpirationToSeconds(expiration: string): number {
+    const unit = expiration.slice(-1);
+    const value = parseInt(expiration.slice(0, -1), 10);
+
+    switch (unit) {
+      case 's':
+        return value;
+      case 'm':
+        return value * 60;
+      case 'h':
+        return value * 3600;
+      case 'd':
+        return value * 86400;
+      default:
+        return 900; // 15 minutes default
+    }
   }
 }
