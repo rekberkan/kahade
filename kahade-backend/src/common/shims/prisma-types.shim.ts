@@ -42,6 +42,11 @@ export enum NotificationType {
   SYSTEM = 'SYSTEM',
 }
 
+export enum Currency {
+  IDR = 'IDR',
+  USD = 'USD',
+}
+
 export type Transaction = any;
 export type Order = any;
 export type User = any;
