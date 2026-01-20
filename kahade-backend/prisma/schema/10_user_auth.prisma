@@ -1,5 +1,5 @@
 // ============================================================================
-// CORE USER & AUTH MODELS
+// CORE USER & AUTH MODELS (ENHANCED)
 // ============================================================================
 
 model User {
@@ -10,28 +10,30 @@ model User {
   passwordHash      String    @map("password_hash")
 
   // Account security
-  passwordUpdatedAt DateTime? @map("password_updated_at")
-  lastLoginAt       DateTime? @map("last_login_at")
+  passwordUpdatedAt DateTime? @map("password_updated_at") @db.Timestamptz
+  lastLoginAt       DateTime? @map("last_login_at") @db.Timestamptz
   failedLoginCount  Int       @default(0) @map("failed_login_count")
-  lockedUntil       DateTime? @map("locked_until")
+  lockedUntil       DateTime? @map("locked_until") @db.Timestamptz
 
   // MFA (store encrypted secret; never plaintext)
   mfaEnabled        Boolean   @default(false) @map("mfa_enabled")
   totpSecretEnc     String?   @map("totp_secret_enc") @db.Text
   backupCodesHash   Json?     @map("backup_codes_hash")
 
-  emailVerifiedAt   DateTime? @map("email_verified_at")
+  emailVerifiedAt   DateTime? @map("email_verified_at") @db.Timestamptz
   kycStatus         KYCStatus @default(NONE) @map("kyc_status")
-  reputationScore   Decimal   @default(0) @db.Decimal(3, 2)
+  
+  // CRITICAL FIX: Increased precision for reputation score (0.00 to 5.00)
+  reputationScore   Decimal   @default(0) @db.Decimal(5, 2)
   totalTransactions Int       @default(0) @map("total_transactions")
   isAdmin           Boolean   @default(false) @map("is_admin")
 
   // Soft delete with FK to admin user
-  deletedAt         DateTime? @map("deleted_at")
+  deletedAt         DateTime? @map("deleted_at") @db.Timestamptz
   deletedByUserId   String?   @map("deleted_by_user_id")
 
-  createdAt         DateTime  @default(now()) @map("created_at")
-  updatedAt         DateTime  @updatedAt @map("updated_at")
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
   // Relations
   wallet               Wallet?
@@ -48,7 +50,9 @@ model User {
   kycSubmissions       KYCSubmission[]       @relation("KYCUser")
   kycVerifications     KYCSubmission[]       @relation("KYCVerifier")
   payments             Payment[]
+  paymentsReconciled   Payment[]             @relation("PaymentReconciler")
   orderComments        OrderComment[]
+  commentsDeleted      OrderComment[]        @relation("CommentDeleter")
   auditLogs            AuditLog[]
   notifications        Notification[]
   disputeEvidences     DisputeEvidence[]
@@ -74,13 +78,14 @@ model User {
   promoAssignments     PromoAssignment[]
   vouchersAssigned     Voucher[]             @relation("VoucherAssignedTo")
 
-  // Activity Log
+  // Activity Log (CRITICAL FIX: Added relation)
   activities           UserActivity[]
 
-  // Transaction Limits
+  // Transaction Limits (CRITICAL FIX: Added relations)
   transactionLimits    TransactionLimit[]    @relation("TransactionLimitUser")
+  limitOverrides       TransactionLimit[]    @relation("LimitOverrider")
 
-  // Order Settlement (CRITICAL FIX)
+  // Order Settlement
   settlementsAsSeller  OrderSettlement[]     @relation("SettlementSeller")
   settlementsAsBuyer   OrderSettlement[]     @relation("SettlementBuyer")
 
@@ -88,6 +93,8 @@ model User {
   @@index([kycStatus, emailVerifiedAt])
   @@index([deletedAt])
   @@index([isAdmin, deletedAt])
+  @@index([email, emailVerifiedAt])
+  @@index([reputationScore DESC])
   @@map("users")
 }
 
@@ -97,13 +104,13 @@ model Session {
   refreshHash         String    @map("refresh_hash")
   userAgent           String?   @map("user_agent")
   ipAddress           String?   @map("ip_address")
-  revokedAt           DateTime? @map("revoked_at")
-  expiresAt           DateTime  @map("expires_at")
-  createdAt           DateTime  @default(now()) @map("created_at")
+  revokedAt           DateTime? @map("revoked_at") @db.Timestamptz
+  expiresAt           DateTime  @map("expires_at") @db.Timestamptz
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
   // Session rotation & token family
   sessionFamilyId     String?   @map("session_family_id")
-  rotatedAt           DateTime? @map("rotated_at")
+  rotatedAt           DateTime? @map("rotated_at") @db.Timestamptz
   replacedBySessionId String?   @map("replaced_by_session_id")
 
   user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -112,5 +119,6 @@ model Session {
 
   @@index([userId, expiresAt])
   @@index([sessionFamilyId])
+  @@index([expiresAt])
   @@map("sessions")
 }

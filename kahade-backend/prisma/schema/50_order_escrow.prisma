@@ -1,5 +1,5 @@
 // ============================================================================
-// ORDER & ESCROW MODELS
+// ORDER & ESCROW MODELS (ENHANCED WITH TIMEOUT ENFORCEMENT)
 // ============================================================================
 
 model Order {
@@ -26,20 +26,24 @@ model Order {
   status            OrderStatus   @default(PENDING_ACCEPT)
 
   inviteToken       String        @unique @map("invite_token")
-  inviteExpiresAt   DateTime      @map("invite_expires_at")
+  inviteExpiresAt   DateTime      @map("invite_expires_at") @db.Timestamptz
 
-  acceptedAt        DateTime?     @map("accepted_at")
-  paidAt            DateTime?     @map("paid_at")
-  autoReleaseAt     DateTime?     @map("auto_release_at")
-  completedAt       DateTime?     @map("completed_at")
-  cancelledAt       DateTime?     @map("cancelled_at")
+  acceptedAt        DateTime?     @map("accepted_at") @db.Timestamptz
+  paidAt            DateTime?     @map("paid_at") @db.Timestamptz
+  
+  // CRITICAL FIX: Escrow timeout enforcement
+  autoReleaseAt     DateTime?     @map("auto_release_at") @db.Timestamptz
+  autoReleaseJobId  String?       @unique @map("auto_release_job_id") // Link to scheduled job
+  
+  completedAt       DateTime?     @map("completed_at") @db.Timestamptz
+  cancelledAt       DateTime?     @map("cancelled_at") @db.Timestamptz
 
   // Soft delete with FK
-  deletedAt         DateTime?     @map("deleted_at")
+  deletedAt         DateTime?     @map("deleted_at") @db.Timestamptz
   deletedByUserId   String?       @map("deleted_by_user_id")
 
-  createdAt         DateTime      @default(now()) @map("created_at")
-  updatedAt         DateTime      @updatedAt @map("updated_at")
+  createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime      @updatedAt @map("updated_at") @db.Timestamptz
 
   // Relations
   initiator         User          @relation("OrderInitiator", fields: [initiatorId], references: [id], onDelete: Restrict)
@@ -59,11 +63,11 @@ model Order {
 
   @@index([status])
   @@index([inviteToken])
-  @@index([autoReleaseAt])
+  @@index([autoReleaseAt, status])
   @@index([inviteExpiresAt])
-  @@index([status, autoReleaseAt])
   @@index([initiatorId, status, createdAt])
   @@index([counterpartyId, status, createdAt])
+  @@index([status, autoReleaseAt]) // For scheduled job queries
   @@map("orders")
 }
 
@@ -78,8 +82,13 @@ model EscrowHold {
   amountMinor    BigInt           @map("amount_minor") @db.BigInt
 
   status         EscrowHoldStatus @default(ACTIVE)
-  createdAt      DateTime         @default(now()) @map("created_at")
-  resolvedAt     DateTime?        @map("resolved_at")
+  
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz
+  resolvedAt     DateTime?        @map("resolved_at") @db.Timestamptz
+  
+  // CRITICAL FIX: Timeout enforcement for auto-release
+  timeoutAt      DateTime?        @map("timeout_at") @db.Timestamptz
+  timeoutJobId   String?          @unique @map("timeout_job_id") // Link to scheduled job
 
   order          Order            @relation(fields: [orderId], references: [id], onDelete: Restrict)
   buyerWallet    Wallet           @relation("BuyerWallet", fields: [buyerWalletId], references: [id], onDelete: Restrict)
@@ -91,6 +100,7 @@ model EscrowHold {
   @@index([status, createdAt])
   @@index([buyerWalletId])
   @@index([sellerWalletId])
+  @@index([timeoutAt, status]) // For scheduled timeout job queries
   @@map("escrow_holds")
 }
 
@@ -106,7 +116,7 @@ model OrderSettlement {
   buyerRefundMinor  BigInt    @map("buyer_refund_minor") @db.BigInt
   platformFeeMinor  BigInt    @map("platform_fee_minor") @db.BigInt
 
-  settledAt         DateTime  @default(now()) @map("settled_at")
+  settledAt         DateTime  @default(now()) @map("settled_at") @db.Timestamptz
 
   order             Order     @relation(fields: [orderId], references: [id], onDelete: Restrict)
   seller            User      @relation("SettlementSeller", fields: [sellerUserId], references: [id], onDelete: Restrict)
@@ -118,6 +128,7 @@ model OrderSettlement {
   @@index([orderId])
   @@index([sellerUserId])
   @@index([buyerUserId])
+  @@index([settledAt])
   @@map("order_settlements")
 }
 
@@ -128,9 +139,10 @@ model DeliveryProof {
   trackingNumber String?   @map("tracking_number")
   fileUrls       Json      @map("file_urls")
   notes          String    @db.Text
-  submittedAt    DateTime  @default(now()) @map("submitted_at")
+  submittedAt    DateTime  @default(now()) @map("submitted_at") @db.Timestamptz
 
   order          Order     @relation(fields: [orderId], references: [id], onDelete: Restrict)
 
+  @@index([orderId])
   @@map("delivery_proofs")
 }
