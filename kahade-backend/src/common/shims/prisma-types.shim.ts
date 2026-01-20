@@ -1,10 +1,26 @@
-export enum TransactionStatus {
-  PENDING = 'PENDING',
-  PAYMENT_CONFIRMED = 'PAYMENT_CONFIRMED',
-  COMPLETED = 'COMPLETED',
-  DISPUTED = 'DISPUTED',
-  CANCELLED = 'CANCELLED',
-  REFUNDED = 'REFUNDED',
+export enum OrderCategory {
+  ELECTRONICS = 'ELECTRONICS',
+  SERVICES = 'SERVICES',
+  DIGITAL_GOODS = 'DIGITAL_GOODS',
+  PHYSICAL_GOODS = 'PHYSICAL_GOODS',
+  OTHER = 'OTHER',
+}
+
+export enum InitiatorRole {
+  BUYER = 'BUYER',
+  SELLER = 'SELLER',
+}
+
+export enum FeePayer {
+  BUYER = 'BUYER',
+  SELLER = 'SELLER',
+  FIFTY_FIFTY = 'FIFTY_FIFTY',
+}
+
+export enum Currency {
+  IDR = 'IDR',
+  USD = 'USD',
+  USDT = 'USDT',
 }
 
 export enum OrderStatus {
@@ -17,46 +33,13 @@ export enum OrderStatus {
   REFUNDED = 'REFUNDED',
 }
 
-export enum OrderCategory {
-  ELECTRONICS = 'ELECTRONICS',
-  SERVICES = 'SERVICES',
-  DIGITAL_GOODS = 'DIGITAL_GOODS',
-  PHYSICAL_GOODS = 'PHYSICAL_GOODS',
-  OTHER = 'OTHER',
-}
-
-export enum UserRole {
-  USER = 'USER',
-  ADMIN = 'ADMIN',
-}
-
-export enum UserStatus {
-  ACTIVE = 'ACTIVE',
-  INACTIVE = 'INACTIVE',
-}
-
-export enum NotificationType {
-  TRANSACTION = 'TRANSACTION',
-  DISPUTE = 'DISPUTE',
-  PAYMENT = 'PAYMENT',
-  SYSTEM = 'SYSTEM',
-}
-
-export enum Currency {
-  IDR = 'IDR',
-  USD = 'USD',
-  USDT = 'USDT',
-}
-
-export enum InitiatorRole {
-  BUYER = 'BUYER',
-  SELLER = 'SELLER',
-}
-
-export enum FeePayer {
-  BUYER = 'BUYER',
-  SELLER = 'SELLER',
-  FIFTY_FIFTY = 'FIFTY_FIFTY',
+export enum TransactionStatus {
+  PENDING = 'PENDING',
+  PAYMENT_CONFIRMED = 'PAYMENT_CONFIRMED',
+  COMPLETED = 'COMPLETED',
+  DISPUTED = 'DISPUTED',
+  CANCELLED = 'CANCELLED',
+  REFUNDED = 'REFUNDED',
 }
 
 export type Transaction = any;
