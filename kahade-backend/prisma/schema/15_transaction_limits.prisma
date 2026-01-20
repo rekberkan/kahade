@@ -1,0 +1,80 @@
+// ============================================================================
+// TRANSACTION LIMITS & VELOCITY TRACKING
+// ============================================================================
+
+model TransactionLimit {
+  id                    String    @id @default(uuid())
+  userId                String    @map("user_id")
+  
+  // Daily limits (resets at midnight UTC)
+  dailyWithdrawalLimitMinor  BigInt @default(50000000) @map("daily_withdrawal_limit_minor") @db.BigInt // Default: 50M IDR
+  dailyWithdrawalUsedMinor   BigInt @default(0) @map("daily_withdrawal_used_minor") @db.BigInt
+  dailyWithdrawalCount       Int    @default(0) @map("daily_withdrawal_count")
+  dailyLimitResetAt          DateTime @map("daily_limit_reset_at")
+  
+  // Monthly limits (resets on 1st of month UTC)
+  monthlyWithdrawalLimitMinor BigInt @default(500000000) @map("monthly_withdrawal_limit_minor") @db.BigInt // Default: 500M IDR
+  monthlyWithdrawalUsedMinor  BigInt @default(0) @map("monthly_withdrawal_used_minor") @db.BigInt
+  monthlyWithdrawalCount      Int    @default(0) @map("monthly_withdrawal_count")
+  monthlyLimitResetAt         DateTime @map("monthly_limit_reset_at")
+  
+  // Cooling period (minimum time between withdrawals)
+  lastWithdrawalAt      DateTime? @map("last_withdrawal_at")
+  coolingPeriodMinutes  Int       @default(60) @map("cooling_period_minutes") // Default: 1 hour
+  
+  // Velocity fraud detection flags
+  suspiciousActivityCount Int      @default(0) @map("suspicious_activity_count")
+  lastSuspiciousAt        DateTime? @map("last_suspicious_at")
+  isLimitOverridden       Boolean   @default(false) @map("is_limit_overridden")
+  overrideReason          String?   @map("override_reason") @db.Text
+  overriddenBy            String?   @map("overridden_by")
+  overriddenAt            DateTime? @map("overridden_at")
+  
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+  
+  user                  User      @relation("TransactionLimitUser", fields: [userId], references: [id], onDelete: Cascade)
+  overrider             User?     @relation("LimitOverrider", fields: [overriddenBy], references: [id], onDelete: SetNull)
+  
+  @@unique([userId])
+  @@index([dailyLimitResetAt])
+  @@index([monthlyLimitResetAt])
+  @@index([lastWithdrawalAt])
+  @@index([suspiciousActivityCount])
+  @@map("transaction_limits")
+}
+
+model WithdrawalVelocityLog {
+  id                String    @id @default(uuid())
+  userId            String    @map("user_id")
+  withdrawalId      String    @map("withdrawal_id")
+  
+  amountMinor       BigInt    @map("amount_minor") @db.BigInt
+  
+  // Velocity metrics at the time of withdrawal
+  hourlyCount       Int       @map("hourly_count")
+  dailyCount        Int       @map("daily_count")
+  weeklyCount       Int       @map("weekly_count")
+  
+  hourlyAmountMinor BigInt    @map("hourly_amount_minor") @db.BigInt
+  dailyAmountMinor  BigInt    @map("daily_amount_minor") @db.BigInt
+  weeklyAmountMinor BigInt    @map("weekly_amount_minor") @db.BigInt
+  
+  // Risk scoring
+  velocityScore     Decimal   @map("velocity_score") @db.Decimal(5,2) // 0.00 to 100.00
+  isFlagged         Boolean   @default(false) @map("is_flagged")
+  flagReason        String?   @map("flag_reason") @db.Text
+  
+  // IP & Device tracking
+  ipAddress         String?   @map("ip_address")
+  userAgent         String?   @map("user_agent") @db.Text
+  deviceFingerprint String?   @map("device_fingerprint")
+  
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  
+  @@index([userId, createdAt])
+  @@index([withdrawalId])
+  @@index([isFlagged, createdAt])
+  @@index([createdAt]) // For time-based velocity queries
+  @@map("withdrawal_velocity_logs")
+}
