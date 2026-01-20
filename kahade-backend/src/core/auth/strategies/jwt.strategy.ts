@@ -22,18 +22,19 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     const user = await this.userService.findById(payload.sub);
     
     if (!user) {
-      throw new UnauthorizedException('User not found');
+      throw new UnauthorizedException('User found in token no longer exists');
     }
 
     if (user.status !== 'ACTIVE') {
-      throw new UnauthorizedException('User account is not active');
+      throw new UnauthorizedException('User account is currently restricted');
     }
 
-    // Return minimal user info with guaranteed role
+    // SECURITY: Return sanitized identity
     return {
       id: user.id,
       email: user.email,
-      role: user.role,
-    };
+      username: user.username,
+      isAdmin: user.isAdmin,
+    } as any;
   }
 }

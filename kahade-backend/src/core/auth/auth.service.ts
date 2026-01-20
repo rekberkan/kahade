@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { UserService } from '../user/user.service';
@@ -21,6 +21,7 @@ export interface ITokenPair {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
   constructor(
     private readonly userService: UserService,
     private readonly jwtService: JwtService,
@@ -37,8 +38,8 @@ export class AuthService {
     const hashedPassword = await HashUtil.hash(registerDto.password);
     const user = await this.userService.create({
       ...registerDto,
-      password: hashedPassword,
-    });
+      passwordHash: hashedPassword,
+    } as any);
 
     const tokens = await this.generateTokens(user.id, user.email);
 
@@ -77,7 +78,7 @@ export class AuthService {
       return null;
     }
 
-    const isPasswordValid = await HashUtil.compare(password, user.password);
+    const isPasswordValid = await HashUtil.compare(password, user.passwordHash);
     if (!isPasswordValid) {
       return null;
     }
