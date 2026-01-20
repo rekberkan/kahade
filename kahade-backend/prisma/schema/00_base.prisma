@@ -1,17 +1,9 @@
 // ============================================================================
-// KAHADE ESCROW P2P - FULL SCHEMA (JOURNAL-CENTRIC FK) - SECURITY FIRST
-// ============================================================================
-// Design:
-// - Journal-centric FK: All "journal links" live in LedgerJournal via entityId FKs.
-// - Entities DO NOT store journalId (prevents dual-FK inconsistency).
-// - Ledger is immutable (no soft-delete fields on ledger_*).
-// - onDelete: Restrict for financial/audit-critical records.
-// - Additional constraints/indexes that Prisma cannot express are documented
-//   in the MIGRATION SQL file (run after prisma migrate).
+// BASE CONFIGURATION
 // ============================================================================
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
   previewFeatures = ["prismaSchemaFolder"]
 }
 
@@ -24,216 +16,69 @@ datasource db {
 // ENUMS
 // ============================================================================
 
-enum Currency {
-  IDR
-}
-
-enum KYCStatus {
-  NONE
-  PENDING
-  APPROVED
-  REJECTED
-}
-
 enum InitiatorRole {
   BUYER
   SELLER
 }
 
 enum OrderCategory {
-  PHYSICAL
-  DIGITAL
-  SERVICE
+  ELECTRONICS
+  SERVICES
+  DIGITAL_GOODS
+  PHYSICAL_GOODS
+  OTHER
+}
+
+enum Currency {
+  IDR
+  USD
 }
 
 enum FeePayer {
   BUYER
   SELLER
-  SPLIT
+  FIFTY_FIFTY
 }
 
 enum OrderStatus {
   PENDING_ACCEPT
-  INVITE_EXPIRED
-  WAITING_PAYMENT
-  PAYMENT_FAILED
-  PAID_IN_ESCROW
-  DELIVERED_PROOF_SUBMITTED
-  IN_DISPUTE
-  REFUND_PROCESSING
-  COMPLETED
-  CANCELLED
-  AUTO_RELEASED
-}
-
-enum PaymentProvider {
-  XENDIT
-}
-
-enum PaymentMethod {
-  VA_BCA
-  VA_BNI
-  VA_MANDIRI
-  VA_BRI
-  QRIS
-  OVO
-  DANA
-  GOPAY
-  LINKAJA
-}
-
-enum PaymentStatus {
-  PENDING
+  ACCEPTED
   PAID
-  EXPIRED
-  FAILED
-}
-
-enum PaymentType {
-  DEPOSIT
-  ORDER_PAYMENT
-}
-
-enum DepositStatus {
-  PENDING
   COMPLETED
-  FAILED
-}
-
-enum WithdrawalStatus {
-  PENDING
-  UNDER_REVIEW
-  APPROVED
-  PROCESSING
-  COMPLETED
-  REJECTED
-  FAILED
   CANCELLED
-}
-
-enum DisputeStatus {
-  OPEN
-  AWAITING_RESPONSE
-  UNDER_REVIEW
-  ESCALATED
-  RESOLVED
-  CANCELLED
-}
-
-enum DisputeDecision {
-  NONE
-  RELEASE_TO_SELLER
-  REFUND_TO_BUYER
-  PARTIAL_SPLIT
-}
-
-enum LedgerAccountType {
-  USER_AVAILABLE
-  USER_LOCKED
-  PLATFORM_REVENUE
-  PLATFORM_CLEARING
-}
-
-enum JournalType {
-  DEPOSIT_CREDIT
-  ESCROW_HOLD
-  ESCROW_RELEASE
-  ESCROW_REFUND
-  FEE_CHARGE
-  WITHDRAWAL_LOCK
-  WITHDRAWAL_RELEASE
-  WITHDRAWAL_DEBIT
-  DISPUTE_SETTLEMENT
-  REFERRAL_REWARD
-  PROMO_CREDIT
-  ADJUSTMENT
+  DISPUTED
+  REFUNDED
 }
 
 enum EscrowHoldStatus {
   ACTIVE
   RELEASED
   REFUNDED
-  CANCELLED
+  DISPUTED
+  ADJUSTED
 }
 
-enum WebhookStatus {
+enum DisputeStatus {
+  OPEN
+  RESPONDED
+  ESCALATED
+  UNDER_ARBITRATION
+  DECIDED
+  APPEALED
+  CLOSED
+}
+
+enum DisputeDecision {
+  NONE
+  RELEASE_ALL_TO_SELLER
+  REFUND_ALL_TO_BUYER
+  SPLIT_SETTLEMENT
+  CANCEL_VOID
+}
+
+enum KYCStatus {
+  NONE
   PENDING
-  PROCESSING
-  COMPLETED
-  FAILED
-  DEAD_LETTER
-}
-
-enum VoucherType {
-  PERCENTAGE
-  FIXED_AMOUNT
-  FREE_FEE
-}
-
-enum VoucherStatus {
-  ACTIVE
-  INACTIVE
-  EXPIRED
-  DEPLETED
-}
-
-enum PromoTargetType {
-  ALL_USERS
-  NEW_USERS
-  SPECIFIC_USERS
-  KYC_VERIFIED
-}
-
-enum ReferralRewardType {
-  FIXED_AMOUNT
-  PERCENTAGE_OF_FIRST_TRANSACTION
-  TIERED
-}
-
-enum ReferralRewardStatus {
-  PENDING
-  PROCESSING
-  COMPLETED
-  EXPIRED
-  FAILED
-}
-
-enum ReferralStatus {
-  PENDING
-  COMPLETED
-  EXPIRED
-  CANCELLED
-}
-
-enum ActivityType {
-  LOGIN
-  LOGIN_FAILED
-  LOGOUT
-  PROFILE_UPDATE
-  PASSWORD_CHANGE
-  MFA_ENABLED
-  MFA_DISABLED
-  MFA_FAILED
-  KYC_SUBMITTED
-  DEPOSIT_INITIATED
-  WITHDRAWAL_REQUESTED
-  ORDER_CREATED
-  ORDER_ACCEPTED
-  ORDER_PAID
-  ORDER_COMPLETED
-  DISPUTE_OPENED
-  RATING_SUBMITTED
-  BANK_ACCOUNT_ADDED
-  BANK_ACCOUNT_REMOVED
-  VOUCHER_REDEEMED
-  REFERRAL_SENT
-  PASSWORD_RESET_REQUESTED
-}
-
-enum ScheduledJobStatus {
-  PENDING
-  RUNNING
-  COMPLETED
-  FAILED
-  CANCELLED
+  VERIFIED
+  REJECTED
 }
