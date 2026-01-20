@@ -1,3 +1,0 @@
-# README
-
-Placeholder documentation content.

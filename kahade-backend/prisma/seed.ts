@@ -6,7 +6,6 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('Start seeding...');
 
-  // Create admin user
   const hashedPassword = await bcrypt.hash('admin123456', 10);
   
   const admin = await prisma.user.upsert({
@@ -23,7 +22,6 @@ async function main() {
 
   console.log('Created admin user:', admin);
 
-  // Create test users
   const buyer = await prisma.user.upsert({
     where: { email: 'buyer@test.com' },
     update: {},
@@ -48,7 +46,6 @@ async function main() {
 
   console.log('Created test users:', { buyer, seller });
 
-  // Create sample order
   const order = await prisma.order.create({
     data: {
       orderNumber: `ORD-${Date.now()}`,
@@ -57,7 +54,7 @@ async function main() {
       title: 'iPhone 14 Pro Max',
       description: 'Brand new iPhone 14 Pro Max 256GB',
       category: 'ELECTRONICS',
-      amountMinor: BigInt(1500000000), // 15M in minor units
+      amountMinor: BigInt(1500000000),
       feePayer: 'BUYER',
       platformFeeMinor: BigInt(15000000),
       holdingPeriodDays: 7,
@@ -68,7 +65,6 @@ async function main() {
   });
 
   console.log('Created sample order:', order);
-
   console.log('Seeding finished.');
 }
 
