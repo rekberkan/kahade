@@ -25,7 +25,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       throw new UnauthorizedException('User found in token no longer exists');
     }
 
-    if (user.status !== 'ACTIVE') {
+    if (user.status && user.status !== 'ACTIVE') {
       throw new UnauthorizedException('User account is currently restricted');
     }
 
@@ -35,6 +35,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       email: user.email,
       username: user.username,
       isAdmin: user.isAdmin,
+      role: user.isAdmin ? 'ADMIN' : 'USER',
     } as any;
   }
 }

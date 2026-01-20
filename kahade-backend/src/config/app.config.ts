@@ -6,7 +6,7 @@ export default registerAs('app', () => ({
   apiPrefix: process.env.API_PREFIX || 'api/v1',
   corsOrigin: process.env.CORS_ORIGIN || '*',
   rateLimit: {
-    ttl: parseInt(process.env.RATE_LIMIT_TTL, 10) || 60,
+    ttl: (parseInt(process.env.RATE_LIMIT_TTL, 10) || 60),
     limit: parseInt(process.env.RATE_LIMIT_LIMIT, 10) || 10,
   },
 }));

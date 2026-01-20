@@ -1,3 +1,5 @@
+import * as crypto from 'crypto';
+
 export class NumberUtil {
   static formatCurrency(amount: number, currency: string = 'IDR'): string {
     return new Intl.NumberFormat('id-ID', {
@@ -11,7 +13,17 @@ export class NumberUtil {
   }
 
   static random(min: number, max: number): number {
-    return Math.floor(Math.random() * (max - min + 1)) + min;
+    const range = max - min + 1;
+    const bytesNeeded = Math.ceil(Math.log2(range) / 8);
+    const maxVal = Math.pow(256, bytesNeeded);
+    const limit = maxVal - (maxVal % range);
+    
+    let value;
+    do {
+      value = crypto.randomBytes(bytesNeeded).readUIntBE(0, bytesNeeded);
+    } while (value >= limit);
+    
+    return min + (value % range);
   }
 
   static round(num: number, decimals: number = 2): number {

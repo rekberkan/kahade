@@ -8,8 +8,11 @@ export class LoggingInterceptor implements NestInterceptor {
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const request = context.switchToHttp().getRequest();
-    const { method, url } = request;
+    const { method, url: rawUrl } = request;
     const now = Date.now();
+    
+    // Sanitize URL for logging (remove potential sensitive query params)
+    const url = rawUrl.split('?')[0];
 
     return next.handle().pipe(
       tap(() => {

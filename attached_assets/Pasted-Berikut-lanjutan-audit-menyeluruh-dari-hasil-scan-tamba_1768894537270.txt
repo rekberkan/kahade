@@ -1,0 +1,36 @@
+Berikut lanjutan audit menyeluruh dari hasil scan tambahan. Saya tidak melakukan perubahan kode apa pun. Saya sudah menelusuri beberapa area yang belum dibahas sebelumnya (auth flow, guard/role, util random, seed, logging). Catatan: audit statik tidak bisa menjamin “tanpa bug sama sekali,” tetapi saya mencatat semua temuan yang terlihat jelas dari kode saat ini.
+
+🔍 Temuan Audit Tambahan (Prioritas Tinggi → Rendah)
+🚨 CRITICAL / HIGH
+1) JWT Strategy memblokir semua user karena field status tidak ada
+JwtStrategy mengecek user.status !== 'ACTIVE', tetapi model User di Prisma tidak memiliki field status. Akibatnya, user.status akan undefined, dan semua user akan dianggap “restricted” → semua request akan ditolak.
+Bukti: check di JwtStrategy vs schema user yang tidak punya status.
+
+2) RolesGuard memerlukan user.role, tetapi JWT hanya mengisi isAdmin
+RolesGuard menolak request jika user.role tidak ada. JwtStrategy tidak mengisi role (hanya isAdmin), dan IAuthUser juga tidak memiliki role. Ini membuat semua endpoint dengan @Roles('ADMIN') selalu Forbidden.
+Bukti: RolesGuard butuh user.role, sementara JWT user tidak punya role di interface & payload.
+
+3) Logout tidak mengirim accessToken → blacklist token invalid
+AuthService.logout membutuhkan accessToken, tetapi controller memanggilnya hanya dengan userId. Akibatnya accessToken akan undefined, sehingga blacklist memasukkan token tidak valid.
+Bukti: signature logout(userId, accessToken) dan pemanggilan tanpa token di controller.
+
+⚠️ HIGH / MEDIUM
+4) Random generator berbasis Math.random() untuk token/kode
+Math.random() tidak aman untuk token/OTP/security code. Jika util ini digunakan untuk token sensitif (invite, promo, reset, dll) maka rentan prediksi.
+Bukti: StringUtil dan NumberUtil menggunakan Math.random().
+Selain itu, seed membuat inviteToken berbasis Math.random().
+
+5) Rate limiting TTL kemungkinan salah unit
+ThrottlerModuleOptions biasanya menganggap ttl dalam detik (bukan ms). Konfig di sini mengisi 1000, 10000, 60000 dengan komentar 1s/10s/1m → bisa jadi 1000 detik, bukan 1 detik.
+Bukti: rateLimitConfig memakai TTL 1000/10000/60000 dengan komentar 1s/10s/1m.
+
+6) Sanitasi filename tersedia tetapi tidak dipakai di upload
+StringUtil.sanitizeFilename() ada, tetapi StorageService memakai file.originalname langsung tanpa sanitasi, sehingga risiko path traversal/overwrite tetap ada (temuan sebelumnya, kini ditambah bahwa sanitizer sudah ada tapi tidak digunakan).
+Bukti: sanitizer ada namun StorageService tidak memakainya.
+
+7) Logging URL penuh berpotensi bocorkan data sensitif
+LoggingInterceptor log seluruh URL dan status. Jika query mengandung token atau data sensitif, akan terekam di log. Pada sistem finansial, ini biasanya harus disanitasi.
+Bukti: log string berisi method, URL, status, timing tanpa sanitasi.
+
+Catatan Tambahan
+Beberapa temuan ini langsung menyebabkan aplikasi gagal berfungsi (misalnya user.status yang tidak ada), sementara yang lain adalah resiko keamanan. Karena ini proyek keuangan, prioritas perbaikan sebaiknya dimulai dari temuan CRITICAL/HIGH.
