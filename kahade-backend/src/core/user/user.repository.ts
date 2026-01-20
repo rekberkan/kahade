@@ -15,6 +15,8 @@ export interface IUpdateUser {
   phone?: string;
   emailVerifiedAt?: Date;
   lastLoginAt?: Date;
+  failedLoginCount?: number;
+  lockedUntil?: Date;
 }
 
 @Injectable()
@@ -38,6 +40,12 @@ export class UserRepository {
   async findByEmail(email: string): Promise<User | null> {
     return this.prisma.user.findUnique({
       where: { email },
+    });
+  }
+
+  async findByUsername(username: string): Promise<User | null> {
+    return this.prisma.user.findUnique({
+      where: { username },
     });
   }
 

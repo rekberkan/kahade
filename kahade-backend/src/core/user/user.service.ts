@@ -2,7 +2,7 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { UserRepository, ICreateUser, IUpdateUser } from './user.repository';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { PaginationUtil, PaginationParams } from '@common/utils/pagination.util';
-import { IUserResponse } from '@common/interfaces/user.interface';
+import { IUserResponse, KYCStatus } from '@common/interfaces/user.interface';
 import { User } from '@prisma/client';
 
 @Injectable()
@@ -13,6 +13,11 @@ export class UserService {
     const existingUser = await this.userRepository.findByEmail(createUserData.email);
     if (existingUser) {
       throw new BadRequestException('Email already exists');
+    }
+
+    const existingUsername = await this.userRepository.findByUsername(createUserData.username);
+    if (existingUsername) {
+      throw new BadRequestException('Username already exists');
     }
 
     return this.userRepository.create(createUserData);
@@ -30,6 +35,10 @@ export class UserService {
     return this.userRepository.findByEmail(email);
   }
 
+  async findByUsername(username: string): Promise<User | null> {
+    return this.userRepository.findByUsername(username);
+  }
+
   async findAll(params: PaginationParams) {
     const { page = 1, limit = 10 } = params;
     const skip = PaginationUtil.getSkip(page, limit);
@@ -45,7 +54,8 @@ export class UserService {
     const user = await this.findById(id);
 
     const updateData: IUpdateUser = {
-      ...updateUserDto,
+      username: updateUserDto.username,
+      phone: updateUserDto.phone,
     };
 
     const updated = await this.userRepository.update(id, updateData);
@@ -64,7 +74,10 @@ export class UserService {
   }
 
   sanitizeUser(user: any): IUserResponse {
-    const { passwordHash, ...sanitized } = user;
-    return sanitized as IUserResponse;
+    const { passwordHash, totpSecretEnc, backupCodesHash, ...sanitized } = user;
+    return {
+      ...sanitized,
+      kycStatus: user.kycStatus as KYCStatus,
+    } as IUserResponse;
   }
 }

@@ -1,26 +1,3 @@
-// import { TransactionStatus } from '@prisma/client';
-
-export enum TransactionStatus {
-  PENDING = 'PENDING',
-  PAYMENT_CONFIRMED = 'PAYMENT_CONFIRMED',
-  COMPLETED = 'COMPLETED',
-  DISPUTED = 'DISPUTED',
-  CANCELLED = 'CANCELLED',
-  REFUNDED = 'REFUNDED',
-}
-
-import { Decimal } from '@prisma/client/runtime/library';
-
-export interface ITransaction {
-  id: string;
-  title: string;
-  description?: string;
-  amountMinor: bigint;
-  currency: string;
-  status: OrderStatus;
-  // ... other fields based on schema
-}
-
 export enum OrderStatus {
   PENDING_ACCEPT = 'PENDING_ACCEPT',
   ACCEPTED = 'ACCEPTED',
@@ -31,51 +8,70 @@ export enum OrderStatus {
   REFUNDED = 'REFUNDED',
 }
 
-export interface ITransactionResponse {
+export enum InitiatorRole {
+  BUYER = 'BUYER',
+  SELLER = 'SELLER',
+}
+
+export enum OrderCategory {
+  ELECTRONICS = 'ELECTRONICS',
+  SERVICES = 'SERVICES',
+  DIGITAL_GOODS = 'DIGITAL_GOODS',
+  PHYSICAL_GOODS = 'PHYSICAL_GOODS',
+  OTHER = 'OTHER',
+}
+
+export enum Currency {
+  IDR = 'IDR',
+  USD = 'USD',
+}
+
+export enum FeePayer {
+  BUYER = 'BUYER',
+  SELLER = 'SELLER',
+  FIFTY_FIFTY = 'FIFTY_FIFTY',
+}
+
+export interface IOrder {
   id: string;
+  orderNumber: string;
+  initiatorId: string;
+  counterpartyId?: string;
+  initiatorRole: InitiatorRole;
   title: string;
-  description?: string;
-  amount: number; // Converted to number for API response
-  currency: string;
-  status: TransactionStatus;
-  blockchainTxHash?: string;
-  paymentId?: string;
+  description: string;
+  category: OrderCategory;
+  currency: Currency;
+  amountMinor: bigint;
+  feePayer: FeePayer;
+  platformFeeMinor: bigint;
+  holdingPeriodDays: number;
+  customTerms?: string;
+  status: OrderStatus;
+  inviteToken: string;
+  inviteExpiresAt: Date;
+  acceptedAt?: Date;
   paidAt?: Date;
+  autoReleaseAt?: Date;
   completedAt?: Date;
   cancelledAt?: Date;
-  refundedAt?: Date;
-  buyerId: string;
-  sellerId: string;
-  buyer?: {
-    id: string;
-    name: string;
-    email: string;
-  };
-  seller?: {
-    id: string;
-    name: string;
-    email: string;
-  };
+  deletedAt?: Date;
+  deletedByUserId?: string;
   createdAt: Date;
   updatedAt: Date;
 }
 
-export interface ICreateTransaction {
-  sellerId: string;
+export interface IOrderResponse {
+  id: string;
+  orderNumber: string;
   title: string;
-  description?: string;
-  amount: number;
-  currency: string;
-  buyerId: string;
-  status: TransactionStatus;
-}
-
-export interface IUpdateTransaction {
-  status?: TransactionStatus;
-  blockchainTxHash?: string;
-  paymentId?: string;
-  paidAt?: Date;
-  completedAt?: Date;
-  cancelledAt?: Date;
-  refundedAt?: Date;
+  description: string;
+  category: OrderCategory;
+  currency: Currency;
+  amount: number; // Converted from minor units
+  status: OrderStatus;
+  initiatorId: string;
+  counterpartyId?: string;
+  createdAt: Date;
+  updatedAt: Date;
 }

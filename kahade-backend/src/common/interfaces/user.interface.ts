@@ -8,13 +8,33 @@ export enum UserStatus {
   INACTIVE = 'INACTIVE',
 }
 
+export enum KYCStatus {
+  NONE = 'NONE',
+  PENDING = 'PENDING',
+  VERIFIED = 'VERIFIED',
+  REJECTED = 'REJECTED',
+}
+
 export interface IUser {
   id: string;
   username: string;
   email: string;
   phone?: string;
-  role: UserRole;
-  emailVerified: boolean;
+  passwordHash: string;
+  passwordUpdatedAt?: Date;
+  lastLoginAt?: Date;
+  failedLoginCount: number;
+  lockedUntil?: Date;
+  mfaEnabled: boolean;
+  totpSecretEnc?: string;
+  backupCodesHash?: any;
+  emailVerifiedAt?: Date;
+  kycStatus: KYCStatus;
+  reputationScore: number;
+  totalTransactions: number;
+  isAdmin: boolean;
+  deletedAt?: Date;
+  deletedByUserId?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -24,8 +44,10 @@ export interface IUserResponse {
   username: string;
   email: string;
   phone?: string;
-  role: UserRole;
-  emailVerified: boolean;
+  kycStatus: KYCStatus;
+  reputationScore: number;
+  totalTransactions: number;
+  isAdmin: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -33,5 +55,6 @@ export interface IUserResponse {
 export interface IAuthUser {
   id: string;
   email: string;
-  role: UserRole;
+  username: string;
+  isAdmin: boolean;
 }
