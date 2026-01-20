@@ -24,6 +24,7 @@ export enum OrderCategory {
 export enum Currency {
   IDR = 'IDR',
   USD = 'USD',
+  USDT = 'USDT',
 }
 
 export enum FeePayer {

@@ -45,6 +45,18 @@ export enum NotificationType {
 export enum Currency {
   IDR = 'IDR',
   USD = 'USD',
+  USDT = 'USDT',
+}
+
+export enum InitiatorRole {
+  BUYER = 'BUYER',
+  SELLER = 'SELLER',
+}
+
+export enum FeePayer {
+  BUYER = 'BUYER',
+  SELLER = 'SELLER',
+  FIFTY_FIFTY = 'FIFTY_FIFTY',
 }
 
 export type Transaction = any;
