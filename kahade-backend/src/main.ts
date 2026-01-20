@@ -43,6 +43,11 @@ async function bootstrap() {
     allowedHeaders: ['Content-Type', 'Authorization'],
   });
 
+  // Health check route outside global prefix
+  app.getHttpAdapter().get('/api/v1/health', (req, res) => {
+    res.status(200).send({ status: 'ok', timestamp: new Date().toISOString() });
+  });
+
   // API Prefix
   app.setGlobalPrefix(apiPrefix);
 
@@ -101,7 +106,7 @@ async function bootstrap() {
     const document = SwaggerModule.createDocument(app, config);
     SwaggerModule.setup(`${apiPrefix}/docs`, app, document, {
       swaggerOptions: {
-        persistAuthorization: nodeEnv !== 'production',
+        persistAuthorization: true,
       },
     });
     

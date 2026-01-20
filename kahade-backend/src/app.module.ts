@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
 
 // Configuration
 import appConfig from './config/app.config';
@@ -75,11 +77,11 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
     BlockchainModule,
     PaymentModule,
     EmailModule,
-
-    // Jobs
     JobsModule,
   ],
+  controllers: [AppController],
   providers: [
+    AppService,
     {
       provide: APP_FILTER,
       useClass: HttpExceptionFilter,
