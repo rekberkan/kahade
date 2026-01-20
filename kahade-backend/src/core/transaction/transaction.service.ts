@@ -28,10 +28,20 @@ export class TransactionService {
   async create(userId: string, createTransactionDto: CreateTransactionDto): Promise<ITransactionResponse> {
     // Create transaction in database
     const transaction = await this.transactionRepository.create({
-      ...createTransactionDto,
-      buyerId: userId,
-      status: 'PENDING' as any as OrderStatus,
-    });
+      orderNumber: `ORD-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+      initiatorId: userId,
+      initiatorRole: 'BUYER',
+      title: createTransactionDto.title,
+      description: createTransactionDto.description,
+      category: createTransactionDto.category,
+      amountMinor: BigInt(Math.round(createTransactionDto.amount * 100)), // Assuming cents
+      feePayer: 'BUYER',
+      platformFeeMinor: BigInt(0), // Default or calculated
+      holdingPeriodDays: 7,
+      status: 'PENDING_ACCEPT' as any,
+      inviteToken: Math.random().toString(36).substring(7),
+      inviteExpiresAt: new Date(Date.now() + 86400000),
+    } as any);
 
     // Record on blockchain for transparency
     try {
@@ -40,7 +50,7 @@ export class TransactionService {
         transactionId: transaction.id,
         amount: amountNumber,
         buyerId: userId,
-        sellerId: transaction.sellerId,
+        sellerId: transaction.counterpartyId,
       });
 
       await this.transactionRepository.update(transaction.id, {
@@ -61,7 +71,7 @@ export class TransactionService {
       throw new NotFoundException('Transaction not found');
     }
 
-    if (transaction.buyerId !== userId && transaction.sellerId !== userId) {
+    if (transaction.initiatorId !== userId && transaction.counterpartyId !== userId) {
       throw new ForbiddenException('Not authorized to view this transaction');
     }
 
@@ -90,7 +100,7 @@ export class TransactionService {
       throw new NotFoundException('Transaction not found');
     }
 
-    if (transaction.buyerId !== userId && transaction.sellerId !== userId) {
+    if (transaction.initiatorId !== userId && transaction.counterpartyId !== userId) {
       throw new ForbiddenException('Not authorized to update this transaction');
     }
 
@@ -111,16 +121,16 @@ export class TransactionService {
       throw new NotFoundException('Transaction not found');
     }
 
-    if (transaction.sellerId !== userId) {
+    if (transaction.counterpartyId !== userId) {
       throw new ForbiddenException('Only seller can confirm payment');
     }
 
-    if (transaction.status !== 'PENDING') {
+    if (transaction.status !== 'PAID') {
       throw new BadRequestException('Invalid transaction status');
     }
 
     const updated = await this.transactionRepository.update(id, {
-      status: 'PAYMENT_CONFIRMED' as any as OrderStatus,
+      status: 'PAID' as any,
       paidAt: new Date(),
     });
 
@@ -134,11 +144,11 @@ export class TransactionService {
       throw new NotFoundException('Transaction not found');
     }
 
-    if (transaction.buyerId !== userId) {
+    if (transaction.initiatorId !== userId) {
       throw new ForbiddenException('Only buyer can release funds');
     }
 
-    if (transaction.status !== 'PAYMENT_CONFIRMED') {
+    if (transaction.status !== 'PAID') {
       throw new BadRequestException('Payment must be confirmed first');
     }
 
@@ -148,12 +158,12 @@ export class TransactionService {
       
       await this.paymentService.transferToSeller({
         amount: amountNumber,
-        sellerId: transaction.sellerId,
+        sellerId: transaction.counterpartyId,
         transactionId: transaction.id,
       });
 
       const updated = await this.transactionRepository.update(id, {
-        status: 'COMPLETED' as any as OrderStatus,
+        status: 'COMPLETED' as any,
         completedAt: new Date(),
       });
 
@@ -171,7 +181,7 @@ export class TransactionService {
       throw new NotFoundException('Transaction not found');
     }
 
-    if (transaction.buyerId !== userId && transaction.sellerId !== userId) {
+    if (transaction.initiatorId !== userId && transaction.counterpartyId !== userId) {
       throw new ForbiddenException('Not authorized to cancel this transaction');
     }
 
@@ -180,7 +190,7 @@ export class TransactionService {
     }
 
     const updated = await this.transactionRepository.update(id, {
-      status: 'CANCELLED' as any as OrderStatus,
+      status: 'CANCELLED' as any,
       cancelledAt: new Date(),
     });
 
@@ -189,8 +199,9 @@ export class TransactionService {
 
   private validateStatusTransition(currentStatus: string, newStatus: string): void {
     const validTransitions: Record<string, string[]> = {
-      PENDING: ['PAYMENT_CONFIRMED', 'CANCELLED'],
-      PAYMENT_CONFIRMED: ['COMPLETED', 'DISPUTED', 'CANCELLED'],
+      PENDING_ACCEPT: ['ACCEPTED', 'CANCELLED'],
+      ACCEPTED: ['PAID', 'CANCELLED'],
+      PAID: ['COMPLETED', 'DISPUTED', 'CANCELLED'],
       DISPUTED: ['COMPLETED', 'CANCELLED', 'REFUNDED'],
       CANCELLED: [],
       COMPLETED: [],

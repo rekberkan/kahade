@@ -11,8 +11,8 @@ export class TransactionRepository {
     return (this.prisma as any).order.create({
       data,
       include: {
-        buyer: { select: { id: true, name: true, email: true } },
-        seller: { select: { id: true, name: true, email: true } },
+        initiator: { select: { id: true, name: true, email: true } },
+        counterparty: { select: { id: true, name: true, email: true } },
       },
     });
   }
@@ -21,8 +21,8 @@ export class TransactionRepository {
     return (this.prisma as any).order.findUnique({
       where: { id },
       include: {
-        buyer: { select: { id: true, name: true, email: true } },
-        seller: { select: { id: true, name: true, email: true } },
+        initiator: { select: { id: true, name: true, email: true } },
+        counterparty: { select: { id: true, name: true, email: true } },
       },
     });
   }
@@ -35,19 +35,19 @@ export class TransactionRepository {
     const [transactions, total] = await Promise.all([
       (this.prisma as any).order.findMany({
         where: {
-          OR: [{ buyerId: userId }, { sellerId: userId }],
+          OR: [{ initiatorId: userId }, { counterpartyId: userId }],
         },
         skip,
         take,
         orderBy: { createdAt: 'desc' },
         include: {
-          buyer: { select: { id: true, name: true, email: true } },
-          seller: { select: { id: true, name: true, email: true } },
+          initiator: { select: { id: true, name: true, email: true } },
+          counterparty: { select: { id: true, name: true, email: true } },
         },
       }),
       (this.prisma as any).order.count({
         where: {
-          OR: [{ buyerId: userId }, { sellerId: userId }],
+          OR: [{ initiatorId: userId }, { counterpartyId: userId }],
         },
       }),
     ]);
@@ -60,8 +60,8 @@ export class TransactionRepository {
       where: { id },
       data,
       include: {
-        buyer: { select: { id: true, name: true, email: true } },
-        seller: { select: { id: true, name: true, email: true } },
+        initiator: { select: { id: true, name: true, email: true } },
+        counterparty: { select: { id: true, name: true, email: true } },
       },
     });
   }
@@ -79,8 +79,8 @@ export class TransactionRepository {
         take,
         orderBy: { createdAt: 'desc' },
         include: {
-          buyer: { select: { id: true, name: true, email: true } },
-          seller: { select: { id: true, name: true, email: true } },
+          initiator: { select: { id: true, name: true, email: true } },
+          counterparty: { select: { id: true, name: true, email: true } },
         },
       }),
       (this.prisma as any).order.count(),

@@ -40,7 +40,10 @@ export class AuthService {
 
     const hashedPassword = await HashUtil.hash(registerDto.password);
     const user = await this.userService.create({
-      ...registerDto,
+      email: registerDto.email,
+      name: registerDto.name,
+      username: registerDto.username,
+      phone: registerDto.phone,
       passwordHash: hashedPassword,
     } as any);
 
