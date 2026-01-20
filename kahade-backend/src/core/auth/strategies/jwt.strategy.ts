@@ -19,7 +19,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   }
 
   async validate(payload: any): Promise<IAuthUser> {
-    const user = await this.userService.findById(payload.sub);
+    const user = await this.userService.findById(payload.sub) as any;
     
     if (!user) {
       throw new UnauthorizedException('User found in token no longer exists');
