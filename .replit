@@ -36,14 +36,18 @@ args = "Backend API"
 name = "Backend API"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "cd kahade-backend && npm run start:dev"
-waitForPort = 5000
-
 [workflows.workflow.metadata]
 outputType = "webview"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "./kahade-backend/run-app.sh"
+waitForPort = 5000
 
 [[ports]]
 localPort = 5000
 externalPort = 80
+
+[deployment]
+deploymentTarget = "autoscale"
+run = ["bash", "./kahade-backend/run-app.sh"]

@@ -1,9 +1,7 @@
-import { ApiProperty } from '@nestjs/swagger';
 import { IsEnum } from 'class-validator';
-import { TransactionStatus } from '@prisma/client';
+import { OrderStatus } from '../../../common/shims/prisma-types.shim';
 
 export class UpdateTransactionStatusDto {
-  @ApiProperty({ enum: TransactionStatus })
-  @IsEnum(TransactionStatus)
-  status: TransactionStatus;
+  @IsEnum(OrderStatus)
+  status: OrderStatus;
 }

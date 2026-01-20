@@ -9,8 +9,8 @@ async function bootstrap() {
   const logger = new Logger('Bootstrap');
   
   // SECURITY FIX: Conditional logging based on environment
-  const nodeEnv = (process.env.NODE_ENV as 'development' | 'production' | 'test' | 'staging') || 'development';
-  const logLevels: LogLevel[] = nodeEnv === 'production' 
+  const nodeEnv = process.env.NODE_ENV || 'development';
+  const logLevels: any[] = nodeEnv === 'production' 
     ? ['error', 'warn', 'log'] 
     : ['error', 'warn', 'log', 'debug', 'verbose'];
 
@@ -101,7 +101,7 @@ async function bootstrap() {
     const document = SwaggerModule.createDocument(app, config);
     SwaggerModule.setup(`${apiPrefix}/docs`, app, document, {
       swaggerOptions: {
-        persistAuthorization: true,
+        persistAuthorization: nodeEnv !== 'production',
       },
     });
     
