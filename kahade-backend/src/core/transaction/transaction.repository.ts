@@ -1,14 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { ICreateTransaction, IUpdateTransaction } from '@common/interfaces/transaction.interface';
-import { Transaction } from '@prisma/client';
+import { Transaction } from '../../common/shims/prisma-types.shim';
 
 @Injectable()
 export class TransactionRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(data: ICreateTransaction): Promise<Transaction> {
-    return this.prisma.transaction.create({
+    return (this.prisma as any).order.create({
       data,
       include: {
         buyer: { select: { id: true, name: true, email: true } },
@@ -18,7 +18,7 @@ export class TransactionRepository {
   }
 
   async findById(id: string): Promise<Transaction | null> {
-    return this.prisma.transaction.findUnique({
+    return (this.prisma as any).order.findUnique({
       where: { id },
       include: {
         buyer: { select: { id: true, name: true, email: true } },
@@ -33,7 +33,7 @@ export class TransactionRepository {
     take: number,
   ): Promise<{ transactions: Transaction[]; total: number }> {
     const [transactions, total] = await Promise.all([
-      this.prisma.transaction.findMany({
+      (this.prisma as any).order.findMany({
         where: {
           OR: [{ buyerId: userId }, { sellerId: userId }],
         },
@@ -45,7 +45,7 @@ export class TransactionRepository {
           seller: { select: { id: true, name: true, email: true } },
         },
       }),
-      this.prisma.transaction.count({
+      (this.prisma as any).order.count({
         where: {
           OR: [{ buyerId: userId }, { sellerId: userId }],
         },
@@ -56,7 +56,7 @@ export class TransactionRepository {
   }
 
   async update(id: string, data: IUpdateTransaction): Promise<Transaction> {
-    return this.prisma.transaction.update({
+    return (this.prisma as any).order.update({
       where: { id },
       data,
       include: {
@@ -67,14 +67,14 @@ export class TransactionRepository {
   }
 
   async delete(id: string): Promise<Transaction> {
-    return this.prisma.transaction.delete({
+    return (this.prisma as any).order.delete({
       where: { id },
     });
   }
 
   async findAll(skip: number, take: number): Promise<{ transactions: Transaction[]; total: number }> {
     const [transactions, total] = await Promise.all([
-      this.prisma.transaction.findMany({
+      (this.prisma as any).order.findMany({
         skip,
         take,
         orderBy: { createdAt: 'desc' },
@@ -83,7 +83,7 @@ export class TransactionRepository {
           seller: { select: { id: true, name: true, email: true } },
         },
       }),
-      this.prisma.transaction.count(),
+      (this.prisma as any).order.count(),
     ]);
 
     return { transactions, total };

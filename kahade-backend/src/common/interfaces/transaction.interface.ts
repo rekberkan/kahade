@@ -69,10 +69,35 @@ export interface IOrderResponse {
   description: string;
   category: OrderCategory;
   currency: Currency;
-  amount: number; // Converted from minor units
+  amount: number;
   status: OrderStatus;
   initiatorId: string;
   counterpartyId?: string;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface ITransactionResponse extends IOrderResponse {
+  buyer?: any;
+  seller?: any;
+  blockchainTxHash?: string;
+}
+
+export interface ICreateTransaction {
+  title: string;
+  description: string;
+  category: OrderCategory;
+  amount: number;
+  currency: Currency;
+  buyerId: string;
+  sellerId?: string;
+  status: OrderStatus;
+}
+
+export interface IUpdateTransaction {
+  status?: OrderStatus;
+  blockchainTxHash?: string;
+  paidAt?: Date;
+  completedAt?: Date;
+  cancelledAt?: Date;
 }

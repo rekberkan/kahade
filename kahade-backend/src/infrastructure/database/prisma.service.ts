@@ -5,6 +5,14 @@ import { PrismaClient } from '@prisma/client';
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(PrismaService.name);
 
+  get transaction() {
+    return (this as any).order;
+  }
+
+  get order() {
+    return (this as any).order;
+  }
+
   constructor() {
     super({
       log: [

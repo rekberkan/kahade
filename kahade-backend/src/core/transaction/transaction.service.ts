@@ -12,8 +12,8 @@ import { PaginationUtil, PaginationParams } from '@common/utils/pagination.util'
 import { DecimalUtil } from '@common/utils/decimal.util';
 import { BlockchainService } from '@integrations/blockchain/blockchain.service';
 import { PaymentService } from '@integrations/payment/payment.service';
-import { ITransactionResponse } from '@common/interfaces/transaction.interface';
-import { Transaction, TransactionStatus } from '@prisma/client';
+import { ITransactionResponse } from '../../common/interfaces/transaction.interface';
+import { Transaction, TransactionStatus, OrderStatus } from '../../common/shims/prisma-types.shim';
 
 @Injectable()
 export class TransactionService {
@@ -30,7 +30,7 @@ export class TransactionService {
     const transaction = await this.transactionRepository.create({
       ...createTransactionDto,
       buyerId: userId,
-      status: 'PENDING' as TransactionStatus,
+      status: 'PENDING' as any as OrderStatus,
     });
 
     // Record on blockchain for transparency
@@ -120,7 +120,7 @@ export class TransactionService {
     }
 
     const updated = await this.transactionRepository.update(id, {
-      status: 'PAYMENT_CONFIRMED' as TransactionStatus,
+      status: 'PAYMENT_CONFIRMED' as any as OrderStatus,
       paidAt: new Date(),
     });
 
@@ -153,7 +153,7 @@ export class TransactionService {
       });
 
       const updated = await this.transactionRepository.update(id, {
-        status: 'COMPLETED' as TransactionStatus,
+        status: 'COMPLETED' as any as OrderStatus,
         completedAt: new Date(),
       });
 
@@ -180,7 +180,7 @@ export class TransactionService {
     }
 
     const updated = await this.transactionRepository.update(id, {
-      status: 'CANCELLED' as TransactionStatus,
+      status: 'CANCELLED' as any as OrderStatus,
       cancelledAt: new Date(),
     });
 

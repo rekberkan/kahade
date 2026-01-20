@@ -46,3 +46,45 @@ export type Transaction = any;
 export type Order = any;
 export type User = any;
 export type Notification = any;
+
+export enum UserRole {
+  USER = 'USER',
+  ADMIN = 'ADMIN',
+}
+
+export enum UserStatus {
+  ACTIVE = 'ACTIVE',
+  INACTIVE = 'INACTIVE',
+}
+
+export enum NotificationType {
+  TRANSACTION = 'TRANSACTION',
+  DISPUTE = 'DISPUTE',
+  PAYMENT = 'PAYMENT',
+  SYSTEM = 'SYSTEM',
+}
+
+export enum ActivityType {
+  LOGIN = 'LOGIN',
+  LOGOUT = 'LOGOUT',
+  TRANSACTION_CREATED = 'TRANSACTION_CREATED',
+  TRANSACTION_UPDATED = 'TRANSACTION_UPDATED',
+  PROFILE_UPDATED = 'PROFILE_UPDATED',
+}
+
+export interface IOrderResponse {
+  id: string;
+  orderNumber: string;
+  title: string;
+  description: string;
+  category: OrderCategory;
+  currency: Currency;
+  amount: number;
+  status: OrderStatus;
+  initiatorId: string;
+  counterpartyId?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ITransactionResponse extends IOrderResponse {}
