@@ -1,0 +1,37 @@
+// ============================================================================
+// ORDER COMMENTS & COMMUNICATION
+// ============================================================================
+
+model OrderComment {
+  id              String    @id @default(uuid())
+  orderId         String    @map("order_id")
+  userId          String    @map("user_id")
+  
+  content         String    @db.Text
+  
+  // Comment metadata
+  isInternal      Boolean   @default(false) @map("is_internal") // For admin-only notes
+  isEdited        Boolean   @default(false) @map("is_edited")
+  editedAt        DateTime? @map("edited_at") @db.Timestamptz
+  
+  // Moderation
+  isDeleted       Boolean   @default(false) @map("is_deleted")
+  deletedAt       DateTime? @map("deleted_at") @db.Timestamptz
+  deletedBy       String?   @map("deleted_by")
+  deletionReason  String?   @map("deletion_reason") @db.Text
+  
+  // Attachments
+  attachmentUrls  Json?     @map("attachment_urls")
+  
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  
+  order           Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  user            User      @relation(fields: [userId], references: [id], onDelete: Restrict)
+  deleter         User?     @relation("CommentDeleter", fields: [deletedBy], references: [id], onDelete: SetNull)
+  
+  @@index([orderId, createdAt])
+  @@index([userId, createdAt])
+  @@index([isInternal, isDeleted])
+  @@map("order_comments")
+}
