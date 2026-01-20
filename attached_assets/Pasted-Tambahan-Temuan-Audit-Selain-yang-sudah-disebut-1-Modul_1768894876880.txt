@@ -1,0 +1,32 @@
+Tambahan Temuan Audit (Selain yang sudah disebut)
+1) Module besar “core” hanya health check tanpa guard
+Beberapa controller (escrow, wallet, payment, webhook, withdrawal) hanya memiliki endpoint health tanpa guard. Jika module tersebut diaktifkan, endpoint dapat diakses publik. Ini sangat berisiko untuk aplikasi finansial.
+Bukti: controller tidak memakai @UseGuards sama sekali.
+
+2) Integrasi Payment bersifat simulasi (dummy), bukan gateway nyata
+Service pembayaran hanya mock (mengembalikan data dummy seperti PAY-..., TRF-...). Jika dipakai di production, transaksi finansial tidak benar-benar diproses.
+Bukti: PaymentService hanya log + return object simulasi, tidak ada API call ke gateway.
+
+3) ID validator (ParseObjectIdPipe) bertentangan dengan istilah “ObjectId”
+Pipe ini dinamai ParseObjectIdPipe, namun validasi yang dilakukan adalah UUID, bukan MongoDB ObjectId. Jika ID di sistem bukan UUID, semua request akan gagal.
+Bukti: regex UUID di ParseObjectIdPipe.
+
+4) Order schema vs Transaction flow: konsep “buyer/seller” tidak ada di model
+Order schema memakai initiatorId & counterpartyId, tidak ada buyerId/sellerId. Namun transaction flow sepenuhnya menggunakan istilah buyer/seller. Ini bukan sekadar mismatch di repository (sudah disebut), tapi mismatch konseptual domain.
+Bukti: schema Order memakai initiatorId/counterpartyId; repository memakai buyerId/sellerId.
+
+5) CreateTransactionDto memungkinkan counterpartyId opsional tanpa validasi relasi
+DTO hanya validasi tipe, tidak ada validasi bahwa counterpartyId ada bila dibutuhkan, atau bahwa nilai itu mengacu ke user valid.
+Bukti: hanya @IsString/@IsOptional tanpa check relasi atau existence.
+
+6) UpdateTransactionStatusDto membatasi enum ke OrderStatus yang berbeda dari flow
+DTO status menggunakan OrderStatus, tetapi TransactionService menggunakan status lain (PENDING, PAYMENT_CONFIRMED, dll). Ini menyebabkan konflik di validasi request (ditolak sebelum masuk service).
+Bukti: DTO memakai OrderStatus.
+Flow memakai status yang tidak ada di OrderStatus.
+
+7) Schema & migration tidak sinkron → risiko runtime di environment baru
+Migration init hanya placeholder; environment baru tidak akan memiliki tabel & constraint yang dibutuhkan, walau schema sudah kaya.
+Bukti: migration hanya -- Placeholder migration.
+
+Catatan
+Jika Anda ingin saya lanjut ke modul lain di luar scope ini (dispute, kyc, admin, notification, bank, promo, referral, dll) saya bisa audit dengan format yang sama.

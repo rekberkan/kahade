@@ -74,7 +74,7 @@ export class UserService {
   }
 
   sanitizeUser(user: any): IUserResponse {
-    const { passwordHash, totpSecretEnc, backupCodesHash, ...sanitized } = user;
+    const { passwordHash, ...sanitized } = user;
     return {
       ...sanitized,
       kycStatus: user.kycStatus as KYCStatus,

@@ -12,8 +12,9 @@ import { PaginationUtil, PaginationParams } from '@common/utils/pagination.util'
 import { DecimalUtil } from '@common/utils/decimal.util';
 import { BlockchainService } from '@integrations/blockchain/blockchain.service';
 import { PaymentService } from '@integrations/payment/payment.service';
+import { UserService } from '@core/user/user.service';
 import { ITransactionResponse } from '../../common/interfaces/transaction.interface';
-import { Transaction, TransactionStatus, OrderStatus } from '../../common/shims/prisma-types.shim';
+import { Transaction, OrderStatus } from '../../common/shims/prisma-types.shim';
 
 @Injectable()
 export class TransactionService {
@@ -23,22 +24,34 @@ export class TransactionService {
     private readonly transactionRepository: TransactionRepository,
     private readonly blockchainService: BlockchainService,
     private readonly paymentService: PaymentService,
+    private readonly userService: UserService,
   ) {}
 
   async create(userId: string, createTransactionDto: CreateTransactionDto): Promise<ITransactionResponse> {
+    // Validate counterparty exists if provided
+    if (createTransactionDto.counterpartyId) {
+      const counterparty = await this.userService.findById(createTransactionDto.counterpartyId);
+      if (!counterparty) {
+        throw new NotFoundException('Counterparty user not found');
+      }
+      if (counterparty.id === userId) {
+        throw new BadRequestException('Cannot create transaction with yourself');
+      }
+    }
+
     // Create transaction in database
     const transaction = await this.transactionRepository.create({
       orderNumber: `ORD-${Date.now()}-${Math.random().toString(36).substring(7)}`,
       initiatorId: userId,
-      initiatorRole: 'BUYER',
+      initiatorRole: 'BUYER' as any,
       title: createTransactionDto.title,
       description: createTransactionDto.description,
       category: createTransactionDto.category,
       amountMinor: BigInt(Math.round(createTransactionDto.amount * 100)), // Assuming cents
-      feePayer: 'BUYER',
+      feePayer: 'BUYER' as any,
       platformFeeMinor: BigInt(0), // Default or calculated
       holdingPeriodDays: 7,
-      status: 'PENDING_ACCEPT' as any,
+      status: OrderStatus.PENDING_ACCEPT,
       inviteToken: Math.random().toString(36).substring(7),
       inviteExpiresAt: new Date(Date.now() + 86400000),
     } as any);
@@ -50,7 +63,7 @@ export class TransactionService {
         transactionId: transaction.id,
         amount: amountNumber,
         buyerId: userId,
-        sellerId: transaction.counterpartyId,
+        sellerId: transaction.counterpartyId as string,
       });
 
       await this.transactionRepository.update(transaction.id, {
@@ -125,14 +138,14 @@ export class TransactionService {
       throw new ForbiddenException('Only seller can confirm payment');
     }
 
-    if (transaction.status !== 'PAID') {
-      throw new BadRequestException('Invalid transaction status');
+    if (transaction.status !== 'ACCEPTED') {
+      throw new BadRequestException('Transaction must be accepted before payment');
     }
 
     const updated = await this.transactionRepository.update(id, {
-      status: 'PAID' as any,
+      status: OrderStatus.PAID,
       paidAt: new Date(),
-    });
+    } as any);
 
     return this.transformToResponse(updated);
   }

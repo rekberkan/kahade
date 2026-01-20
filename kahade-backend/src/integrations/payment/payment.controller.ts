@@ -6,6 +6,8 @@ import { Public } from '@common/decorators/public.decorator';
 
 @ApiTags('payments')
 @Controller('payments')
+@UseGuards(JwtAuthGuard)
+@ApiBearerAuth('JWT-auth')
 export class PaymentController {
   constructor(private readonly paymentService: PaymentService) {}
 

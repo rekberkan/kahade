@@ -1,4 +1,4 @@
-import { IsEnum, IsNumber, IsString, IsOptional } from 'class-validator';
+import { IsEnum, IsNumber, IsString, IsOptional, MinLength } from 'class-validator';
 import { OrderCategory, Currency } from '../../../common/shims/prisma-types.shim';
 
 export class CreateTransactionDto {
@@ -19,5 +19,6 @@ export class CreateTransactionDto {
 
   @IsString()
   @IsOptional()
+  @MinLength(1)
   counterpartyId?: string;
 }
