@@ -21,8 +21,15 @@ export class StorageService {
   }
 
   async upload(file: Express.Multer.File): Promise<string> {
-    const filename = `${Date.now()}-${file.originalname}`;
+    const ext = path.extname(file.originalname);
+    const safeName = path.basename(file.originalname, ext).replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    const filename = `${Date.now()}-${safeName}${ext}`;
     const filepath = path.join(this.uploadPath, filename);
+
+    // Ensure we are still within the upload directory
+    if (!filepath.startsWith(path.resolve(this.uploadPath))) {
+      throw new Error('Invalid file path');
+    }
 
     fs.writeFileSync(filepath, file.buffer);
     
@@ -31,16 +38,23 @@ export class StorageService {
   }
 
   async delete(filename: string): Promise<void> {
-    const filepath = path.join(this.uploadPath, filename);
+    const safeFilename = path.basename(filename);
+    const filepath = path.join(this.uploadPath, safeFilename);
     
-    if (fs.existsSync(filepath)) {
+    if (fs.existsSync(filepath) && filepath.startsWith(path.resolve(this.uploadPath))) {
       fs.unlinkSync(filepath);
-      this.logger.log(`File deleted: ${filename}`);
+      this.logger.log(`File deleted: ${safeFilename}`);
     }
   }
 
   async get(filename: string): Promise<Buffer> {
-    const filepath = path.join(this.uploadPath, filename);
+    const safeFilename = path.basename(filename);
+    const filepath = path.join(this.uploadPath, safeFilename);
+
+    if (!filepath.startsWith(path.resolve(this.uploadPath))) {
+      throw new Error('Invalid file path');
+    }
+
     return fs.readFileSync(filepath);
   }
 }

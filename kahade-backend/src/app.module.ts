@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -53,6 +53,8 @@ import { JobsModule } from './jobs/jobs.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 
+import { ThrottlerModule } from '@nestjs/throttler';
+
 @Module({
   imports: [
     // Configuration
@@ -72,6 +74,18 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
         `.env.${process.env.NODE_ENV || 'development'}`,
         '.env',
       ],
+    }),
+
+    // Rate Limiting
+    ThrottlerModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        throttlers: [{
+          ttl: config.get<number>('app.rateLimit.ttl') || 60,
+          limit: config.get<number>('app.rateLimit.limit') || 10,
+        }],
+      }),
     }),
 
     // Infrastructure

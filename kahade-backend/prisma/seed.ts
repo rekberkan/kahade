@@ -6,7 +6,11 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('Start seeding...');
 
-  const hashedPassword = await bcrypt.hash('admin123456', 10);
+  const adminPassword = process.env.SEED_ADMIN_PASSWORD || 'admin123456';
+  const testPassword = process.env.SEED_TEST_PASSWORD || 'test123456';
+  
+  const hashedAdminPassword = await bcrypt.hash(adminPassword, 10);
+  const hashedTestPassword = await bcrypt.hash(testPassword, 10);
   
   const admin = await prisma.user.upsert({
     where: { email: 'admin@kahade.com' },
@@ -14,7 +18,7 @@ async function main() {
     create: {
       username: 'admin',
       email: 'admin@kahade.com',
-      passwordHash: hashedPassword,
+      passwordHash: hashedAdminPassword,
       isAdmin: true,
       emailVerifiedAt: new Date(),
     },
@@ -28,7 +32,7 @@ async function main() {
     create: {
       username: 'buyer',
       email: 'buyer@test.com',
-      passwordHash: hashedPassword,
+      passwordHash: hashedTestPassword,
       phone: '+6281234567890',
     },
   });
@@ -39,7 +43,7 @@ async function main() {
     create: {
       username: 'seller',
       email: 'seller@test.com',
-      passwordHash: hashedPassword,
+      passwordHash: hashedTestPassword,
       phone: '+6281234567891',
     },
   });

@@ -19,6 +19,8 @@ export interface ITokenPair {
   refreshToken: string;
 }
 
+import { SessionRepository } from './session.repository';
+
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
@@ -27,6 +29,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly tokenBlacklistService: TokenBlacklistService,
+    private readonly sessionRepository: SessionRepository,
   ) {}
 
   async register(registerDto: RegisterDto): Promise<IAuthResponse> {
@@ -43,7 +46,18 @@ export class AuthService {
 
     const tokens = await this.generateTokens(user.id, user.email);
 
-    // SECURITY FIX: Store refresh token in Redis
+    // SECURITY FIX: Store refresh token in Session DB
+    try {
+      await this.sessionRepository.create({
+        userId: user.id,
+        token: tokens.refreshToken,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+      });
+    } catch (error) {
+      this.logger.error(`Failed to store session in DB: ${error.message}`);
+    }
+
+    // Also store in Redis/Memory for fast validation if available
     await this.storeRefreshToken(user.id, tokens.refreshToken);
 
     return {
@@ -63,7 +77,18 @@ export class AuthService {
 
     const tokens = await this.generateTokens(user.id, user.email);
 
-    // SECURITY FIX: Store refresh token in Redis
+    // SECURITY FIX: Store refresh token in Session DB
+    try {
+      await this.sessionRepository.create({
+        userId: user.id,
+        token: tokens.refreshToken,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+      });
+    } catch (error) {
+      this.logger.error(`Failed to store session in DB: ${error.message}`);
+    }
+
+    // Also store in Redis/Memory
     await this.storeRefreshToken(user.id, tokens.refreshToken);
 
     return {
@@ -88,10 +113,16 @@ export class AuthService {
 
   async refreshToken(refreshToken: string): Promise<ITokenPair> {
     try {
-      // SECURITY FIX: Verify token exists in Redis before refresh
+      // SECURITY FIX: Verify token exists in DB before refresh
       const userId = await this.tokenBlacklistService.validateRefreshToken(refreshToken);
       if (!userId) {
         throw new UnauthorizedException('Invalid or expired refresh token');
+      }
+
+      // Verify DB session
+      const dbSession = await this.sessionRepository.findByToken(refreshToken);
+      if (!dbSession || dbSession.revokedAt || new Date(dbSession.expiresAt) < new Date()) {
+        throw new UnauthorizedException('Session invalid or expired');
       }
 
       const payload = this.jwtService.verify(refreshToken, {
@@ -109,11 +140,19 @@ export class AuthService {
 
       // SECURITY FIX: Revoke old refresh token (rotation)
       await this.tokenBlacklistService.revokeRefreshToken(refreshToken);
+      await this.sessionRepository.revoke(refreshToken);
 
       // Generate new token pair
       const tokens = await this.generateTokens(user.id, user.email);
 
-      // Store new refresh token
+      // Store new refresh token in DB
+      await this.sessionRepository.create({
+        userId: user.id,
+        token: tokens.refreshToken,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      });
+
+      // Store new refresh token in cache
       await this.storeRefreshToken(user.id, tokens.refreshToken);
 
       return tokens;
@@ -122,15 +161,17 @@ export class AuthService {
     }
   }
 
-  async logout(userId: string, accessToken: string): Promise<{ message: string }> {
+  async logout(userId: string, accessToken: string, refreshToken?: string): Promise<{ message: string }> {
     // SECURITY FIX: Blacklist the access token
     const expiresIn = this.configService.get<string>('jwt.expiresIn', '15m');
     const expiresInSeconds = this.parseExpirationToSeconds(expiresIn);
     
     await this.tokenBlacklistService.blacklistToken(accessToken, expiresInSeconds);
 
-    // Note: Refresh token revocation happens on next refresh attempt
-    // Or implement full logout with refresh token if provided
+    if (refreshToken) {
+      await this.tokenBlacklistService.revokeRefreshToken(refreshToken);
+      await this.sessionRepository.revoke(refreshToken);
+    }
 
     return { message: 'Successfully logged out' };
   }
