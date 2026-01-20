@@ -1,0 +1,99 @@
+Di bawah ini hasil audit lanjutan sesuai scope yang Anda minta: controller/DTO/guard per modul (auth, escrow, wallet, payment, withdrawal), flow transaksi (escrow → settlement → ledger), validasi & authorization, dan konsistensi Prisma + migration.
+Saya tetap tidak bisa menjamin “tidak ada bug sama sekali” tanpa eksekusi runtime dan uji menyeluruh, tetapi semua temuan berikut berdasarkan bukti kode nyata dan saya sertakan sitasi.
+
+✅ Temuan Audit Lanjutan (Terstruktur per Scope)
+A) Auth (Controller/DTO/Guard)
+1) Registrasi user akan gagal karena username wajib tapi tidak disediakan
+RegisterDto hanya menyediakan name, bukan username.
+
+AuthService.register() me-spread registerDto ke userService.create() tanpa mapping username → name.
+
+UserRepository.create() mensyaratkan username (field wajib).
+Dampak: Pembuatan user baru berisiko gagal karena username tidak ada.
+
+2) RolesGuard selalu gagal karena JwtStrategy tidak mengisi role
+RolesGuard mewajibkan user.role; jika tidak ada, selalu Forbidden.
+
+JwtStrategy hanya mengembalikan { id, email, username, isAdmin }, tanpa role.
+
+IAuthUser tidak memiliki role field.
+Dampak: Semua endpoint yang memakai @Roles('ADMIN') akan selalu gagal.
+
+3) JWT Strategy mengecek user.status, tapi field ini tidak ada di schema
+JwtStrategy memeriksa user.status !== 'ACTIVE'.
+
+Pada schema User tidak ada status field. Ini menyebabkan semua user dianggap tidak aktif dan request ditolak.
+Dampak: Semua request auth akan gagal.
+
+B) Escrow / Settlement / Ledger Flow
+4) Module kosong → controller/service tidak pernah terdaftar
+EscrowModule, LedgerModule, PaymentModule, WithdrawalModule kosong (tidak mendaftarkan controller/service).
+Akibat: endpoint tidak pernah aktif.
+**Bukti:**
+
+5) Escrow/Settlement/Ledger hanya “health check” tanpa logic bisnis
+Controller hanya GET /health tanpa guard/logic transaksi.
+**Bukti:**
+Dampak: Flow escrow → settlement → ledger tidak terimplementasi.
+
+C) Wallet / Payment / Withdrawal (Controllers/DTO/Guards)
+6) Controller tersedia tetapi tanpa guard/authorization
+wallet, payment, webhook, withdrawal controller tidak menggunakan guard.
+**Bukti:**
+Dampak: endpoint (jika aktif) bisa diakses publik — tidak aman untuk proyek finansial.
+
+7) DTO kosong → tidak ada validasi input sama sekali
+CreateEscrowHoldDto, ReleaseEscrowDto, RefundEscrowDto, SettlementDto, EscrowStatusDto, TransactionLimitDto semuanya kosong.
+**Bukti:**
+
+D) Flow Transaksi (Escrow → Settlement → Ledger) & Validasi
+8) Transaction menggunakan “Order” schema, tapi field tidak cocok → Prisma error
+Repository memakai model order dan filter buyerId/sellerId, namun schema Order memakai initiatorId/counterpartyId.
+Bukti: filter di repo memakai buyerId/sellerId
+Sedangkan schema memakai initiatorId/counterpartyId
+Dampak: query akan gagal karena field buyerId/sellerId tidak ada.
+
+9) order.create() kekurangan field wajib (schema)
+Order membutuhkan orderNumber, initiatorId, initiatorRole, amountMinor, feePayer, platformFeeMinor, holdingPeriodDays, inviteToken, inviteExpiresAt (wajib).
+
+TransactionService.create() hanya mengirim title/description/category/amount/currency/buyerId/sellerId/status.
+Dampak: Create transaction akan gagal di Prisma karena field wajib hilang.
+
+10) Enum status tidak konsisten (OrderStatus vs TransactionStatus)
+TransactionService menulis status 'PENDING' dan 'PAYMENT_CONFIRMED', padahal OrderStatus tidak memiliki nilai tersebut.
+Bukti: penggunaan 'PENDING' dan 'PAYMENT_CONFIRMED'
+OrderStatus hanya punya PENDING_ACCEPT, ACCEPTED, PAID, dll.
+Dampak: runtime error / invalid enum di DB.
+
+11) Validasi status transition pakai status yang tidak ada di schema
+validateStatusTransition() menggunakan PENDING, PAYMENT_CONFIRMED, dll.
+**Bukti:**
+
+UpdateTransactionStatusDto hanya menerima OrderStatus (yang berbeda).
+Dampak: kontradiksi antara DTO dan logic status.
+
+E) Validasi & Authorization Checks
+12) CreateUserDto memakai name/role tetapi schema/repository memakai username/isAdmin
+DTO: name, role。
+
+Repository: username, isAdmin.
+Dampak: pembuatan user via DTO berpotensi gagal/inkonsisten (field tidak sinkron dengan schema).
+
+F) Prisma Schema + Migration Consistency
+13) Migration hanya placeholder → schema tidak pernah benar‑benar terdeploy
+prisma/migrations/[timestamp]_init/migration.sql hanya berisi -- Placeholder migration.
+Dampak: Schema di prisma/schema tidak pernah tersinkronisasi ke DB melalui migrations → risiko besar di production.
+
+Ringkasan Paling Kritis (Prioritas Tinggi)
+Auth gagal karena username wajib tidak diisi (Register DTO & service mismatch).
+
+Semua endpoint @Roles gagal karena role tidak pernah tersedia di JWT user.
+
+JWT Strategy cek user.status padahal field tidak ada → auth selalu gagal.
+
+Transaction flow tidak sesuai schema (field, status enum, required fields) → prisma error.
+
+Migration kosong → schema tidak dapat diterapkan di DB.
+
+Catatan Penting
+Saya tetap tidak bisa menjamin zero‑bug hanya lewat audit statik. Namun semua temuan di atas adalah bug/ketidakkonsistenan yang pasti berdasar kode saat ini.
