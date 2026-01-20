@@ -63,8 +63,8 @@ export class UserService {
     await this.userRepository.delete(id);
   }
 
-  sanitizeUser(user: User): IUserResponse {
-    const { password, ...sanitized } = user;
+  sanitizeUser(user: any): IUserResponse {
+    const { passwordHash, ...sanitized } = user;
     return sanitized as IUserResponse;
   }
 }

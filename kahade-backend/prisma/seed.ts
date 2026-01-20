@@ -13,11 +13,11 @@ async function main() {
     where: { email: 'admin@kahade.com' },
     update: {},
     create: {
+      username: 'admin',
       email: 'admin@kahade.com',
-      name: 'Admin Kahade',
-      password: hashedPassword,
-      role: 'ADMIN',
-      emailVerified: true,
+      passwordHash: hashedPassword,
+      isAdmin: true,
+      emailVerifiedAt: new Date(),
     },
   });
 
@@ -28,10 +28,9 @@ async function main() {
     where: { email: 'buyer@test.com' },
     update: {},
     create: {
+      username: 'buyer',
       email: 'buyer@test.com',
-      name: 'Test Buyer',
-      password: hashedPassword,
-      role: 'USER',
+      passwordHash: hashedPassword,
       phone: '+6281234567890',
     },
   });
@@ -40,30 +39,35 @@ async function main() {
     where: { email: 'seller@test.com' },
     update: {},
     create: {
+      username: 'seller',
       email: 'seller@test.com',
-      name: 'Test Seller',
-      password: hashedPassword,
-      role: 'USER',
+      passwordHash: hashedPassword,
       phone: '+6281234567891',
     },
   });
 
   console.log('Created test users:', { buyer, seller });
 
-  // Create sample transaction
-  const transaction = await prisma.transaction.create({
+  // Create sample order
+  const order = await prisma.order.create({
     data: {
+      orderNumber: `ORD-${Date.now()}`,
+      initiatorId: buyer.id,
+      initiatorRole: 'BUYER',
       title: 'iPhone 14 Pro Max',
       description: 'Brand new iPhone 14 Pro Max 256GB',
-      amount: 15000000,
-      currency: 'IDR',
-      status: 'PENDING',
-      buyerId: buyer.id,
-      sellerId: seller.id,
+      category: 'ELECTRONICS',
+      amountMinor: BigInt(1500000000), // 15M in minor units
+      feePayer: 'BUYER',
+      platformFeeMinor: BigInt(15000000),
+      holdingPeriodDays: 7,
+      status: 'PENDING_ACCEPT',
+      inviteToken: Math.random().toString(36).substring(7),
+      inviteExpiresAt: new Date(Date.now() + 86400000),
     },
   });
 
-  console.log('Created sample transaction:', transaction);
+  console.log('Created sample order:', order);
 
   console.log('Seeding finished.');
 }

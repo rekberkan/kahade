@@ -1,24 +1,18 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '@infrastructure/database/prisma.service';
-import { User, UserRole, UserStatus } from '@prisma/client';
+import { User } from '@prisma/client';
 
 export interface ICreateUser {
   email: string;
-  password: string;
-  name: string;
+  passwordHash: string;
+  username: string;
   phone?: string;
-  role?: UserRole;
-  status?: UserStatus;
+  isAdmin?: boolean;
 }
 
 export interface IUpdateUser {
-  name?: string;
+  username?: string;
   phone?: string;
-  avatar?: string;
-  bio?: string;
-  role?: UserRole;
-  status?: UserStatus;
-  emailVerified?: boolean;
   emailVerifiedAt?: Date;
   lastLoginAt?: Date;
 }
@@ -31,8 +25,6 @@ export class UserRepository {
     return this.prisma.user.create({
       data: {
         ...data,
-        role: data.role || 'USER',
-        status: data.status || 'ACTIVE',
       },
     });
   }
@@ -77,33 +69,5 @@ export class UserRepository {
 
   async count(): Promise<number> {
     return this.prisma.user.count();
-  }
-
-  async findByRole(role: UserRole, skip: number, take: number): Promise<{ users: User[]; total: number }> {
-    const [users, total] = await Promise.all([
-      this.prisma.user.findMany({
-        where: { role },
-        skip,
-        take,
-        orderBy: { createdAt: 'desc' },
-      }),
-      this.prisma.user.count({ where: { role } }),
-    ]);
-
-    return { users, total };
-  }
-
-  async findByStatus(status: UserStatus, skip: number, take: number): Promise<{ users: User[]; total: number }> {
-    const [users, total] = await Promise.all([
-      this.prisma.user.findMany({
-        where: { status },
-        skip,
-        take,
-        orderBy: { createdAt: 'desc' },
-      }),
-      this.prisma.user.count({ where: { status } }),
-    ]);
-
-    return { users, total };
   }
 }

@@ -1,30 +1,30 @@
-import { UserRole, UserStatus } from '@prisma/client';
+export enum UserRole {
+  USER = 'USER',
+  ADMIN = 'ADMIN',
+}
+
+export enum UserStatus {
+  ACTIVE = 'ACTIVE',
+  INACTIVE = 'INACTIVE',
+}
 
 export interface IUser {
   id: string;
+  username: string;
   email: string;
-  name: string;
   phone?: string;
-  avatar?: string;
-  bio?: string;
   role: UserRole;
-  status: UserStatus;
   emailVerified: boolean;
-  emailVerifiedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
-  lastLoginAt?: Date;
 }
 
 export interface IUserResponse {
   id: string;
+  username: string;
   email: string;
-  name: string;
   phone?: string;
-  avatar?: string;
-  bio?: string;
   role: UserRole;
-  status: UserStatus;
   emailVerified: boolean;
   createdAt: Date;
   updatedAt: Date;
