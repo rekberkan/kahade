@@ -82,3 +82,115 @@ enum KYCStatus {
   VERIFIED
   REJECTED
 }
+
+enum PromoTargetType {
+  USER
+  ORDER
+}
+
+enum VoucherType {
+  PERCENTAGE
+  FIXED
+}
+
+enum VoucherStatus {
+  ACTIVE
+  INACTIVE
+  EXPIRED
+}
+
+enum ActivityType {
+  LOGIN
+  LOGOUT
+  ORDER_CREATE
+  PAYMENT_SUCCESS
+}
+
+enum LedgerAccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  REVENUE
+  EXPENSE
+}
+
+enum ScheduledJobStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum JournalType {
+  TRANSACTION
+  ADJUSTMENT
+}
+
+enum PaymentProvider {
+  XENDIT
+  MIDTRANS
+}
+
+enum PaymentType {
+  DEPOSIT
+  WITHDRAWAL
+}
+
+enum PaymentMethod {
+  VIRTUAL_ACCOUNT
+  EWALLET
+  CREDIT_CARD
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  EXPIRED
+}
+
+enum BankAccountType {
+  SAVINGS
+  CHECKING
+}
+
+enum WithdrawalStatus {
+  PENDING
+  APPROVED
+  COMPLETED
+  REJECTED
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+}
+
+enum WebhookStatus {
+  PENDING
+  PROCESSED
+  FAILED
+}
+
+enum DepositStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+enum ReferralStatus {
+  PENDING
+  ACTIVE
+  EXPIRED
+}
+
+enum ReferralRewardType {
+  CASHBACK
+  COMMISSION
+}
+
+enum ReferralRewardStatus {
+  PENDING
+  CLAIMED
+}
