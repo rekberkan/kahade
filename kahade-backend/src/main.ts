@@ -1,5 +1,5 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe, VersioningType, Logger } from '@nestjs/common';
+import { ValidationPipe, VersioningType, Logger, LogLevel } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import helmet from 'helmet';
@@ -9,8 +9,8 @@ async function bootstrap() {
   const logger = new Logger('Bootstrap');
   
   // SECURITY FIX: Conditional logging based on environment
-  const nodeEnv = process.env.NODE_ENV || 'development';
-  const logLevels = nodeEnv === 'production' 
+  const nodeEnv = (process.env.NODE_ENV as 'development' | 'production' | 'test' | 'staging') || 'development';
+  const logLevels: LogLevel[] = nodeEnv === 'production' 
     ? ['error', 'warn', 'log'] 
     : ['error', 'warn', 'log', 'debug', 'verbose'];
 
@@ -101,7 +101,7 @@ async function bootstrap() {
     const document = SwaggerModule.createDocument(app, config);
     SwaggerModule.setup(`${apiPrefix}/docs`, app, document, {
       swaggerOptions: {
-        persistAuthorization: nodeEnv !== 'production',
+        persistAuthorization: true,
       },
     });
     
