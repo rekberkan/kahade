@@ -7,7 +7,7 @@ export class TokenBlacklistService {
   private readonly logger = new Logger(TokenBlacklistService.name);
   private redis: Redis | null = null;
   private blacklistSet = new Set<string>();
-  private refreshTokens = new Map<string, { token: string; expiresAt: number }>();
+  private refreshTokens = new Map<string, { userId: string; expiresAt: number }>();
 
   constructor(private readonly configService: ConfigService) {
     const redisHost = this.configService.get<string>('redis.host');
@@ -48,32 +48,23 @@ export class TokenBlacklistService {
 
   async storeRefreshToken(userId: string, token: string, expiresInSeconds: number): Promise<void> {
     if (this.redis) {
-      await this.redis.set(`refresh:${userId}`, token, 'EX', expiresInSeconds);
+      await this.redis.set(`refresh:${token}`, userId, 'EX', expiresInSeconds);
     } else {
-      this.refreshTokens.set(userId, {
-        token,
-        expiresAt: Date.now() + (expiresInSeconds * 1000)
+      this.refreshTokens.set(token, {
+        userId,
+        expiresAt: Date.now() + (expiresInSeconds * 1000),
       });
     }
   }
 
   async validateRefreshToken(token: string): Promise<string | null> {
     if (this.redis) {
-      // This is inefficient in Redis without a reverse mapping, 
-      // but matching the current memory implementation pattern for now
-      // In production, we'd usually store refresh token by ID or similar
-      const keys = await this.redis.keys('refresh:*');
-      for (const key of keys) {
-        const storedToken = await this.redis.get(key);
-        if (storedToken === token) {
-          return key.split(':')[1];
-        }
-      }
+      const userId = await this.redis.get(`refresh:${token}`);
+      return userId ?? null;
     } else {
-      for (const [userId, data] of this.refreshTokens.entries()) {
-        if (data.token === token && data.expiresAt > Date.now()) {
-          return userId;
-        }
+      const data = this.refreshTokens.get(token);
+      if (data && data.expiresAt > Date.now()) {
+        return data.userId;
       }
     }
     return null;
@@ -81,21 +72,9 @@ export class TokenBlacklistService {
 
   async revokeRefreshToken(token: string): Promise<void> {
     if (this.redis) {
-      const keys = await this.redis.keys('refresh:*');
-      for (const key of keys) {
-        const storedToken = await this.redis.get(key);
-        if (storedToken === token) {
-          await this.redis.del(key);
-          break;
-        }
-      }
+      await this.redis.del(`refresh:${token}`);
     } else {
-      for (const [userId, data] of this.refreshTokens.entries()) {
-        if (data.token === token) {
-          this.refreshTokens.delete(userId);
-          break;
-        }
-      }
+      this.refreshTokens.delete(token);
     }
   }
 }

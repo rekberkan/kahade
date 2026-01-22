@@ -54,12 +54,18 @@ export class WebhookValidatorService {
     signature: string,
     secret: string,
   ): boolean {
+    if (!signature) {
+      return false;
+    }
     const expectedSignature = crypto
       .createHmac('sha256', secret)
       .update(payload)
       .digest('hex');
 
     // Constant-time comparison to prevent timing attacks
+    if (signature.length !== expectedSignature.length) {
+      return false;
+    }
     return crypto.timingSafeEqual(
       Buffer.from(signature),
       Buffer.from(expectedSignature),
@@ -91,7 +97,10 @@ export class WebhookValidatorService {
     headers: Record<string, string>,
     body: any,
   ): Promise<IWebhookValidationResult> {
-    const signature = headers['x-signature'] || headers['x-callback-token'];
+    const signature =
+      headers['x-signature'] ||
+      headers['x-callback-token'] ||
+      body?.signature_key;
     const timestamp = parseInt(headers['x-timestamp'] || '0', 10);
 
     // Validate timestamp (replay attack prevention)
