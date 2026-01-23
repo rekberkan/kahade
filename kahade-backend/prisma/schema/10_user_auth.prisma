@@ -10,10 +10,18 @@ model User {
   passwordHash      String    @map("password_hash")
 
   // Account security
-  passwordUpdatedAt DateTime? @map("password_updated_at") @db.Timestamptz
-  lastLoginAt       DateTime? @map("last_login_at") @db.Timestamptz
-  failedLoginCount  Int       @default(0) @map("failed_login_count")
-  lockedUntil       DateTime? @map("locked_until") @db.Timestamptz
+  passwordUpdatedAt    DateTime? @map("password_updated_at") @db.Timestamptz
+  passwordResetToken   String?   @map("password_reset_token")
+  passwordResetExpires DateTime? @map("password_reset_expires") @db.Timestamptz
+  lastLoginAt          DateTime? @map("last_login_at") @db.Timestamptz
+  lastFailedLoginAt    DateTime? @map("last_failed_login_at") @db.Timestamptz
+  failedLoginCount     Int       @default(0) @map("failed_login_count")
+  lockedUntil          DateTime? @map("locked_until") @db.Timestamptz
+  
+  // Account suspension
+  suspendedAt          DateTime? @map("suspended_at") @db.Timestamptz
+  suspendedUntil       DateTime? @map("suspended_until") @db.Timestamptz
+  suspendReason        String?   @map("suspend_reason") @db.Text
 
   // MFA (store encrypted secret; never plaintext)
   mfaEnabled        Boolean   @default(false) @map("mfa_enabled")
@@ -94,7 +102,7 @@ model User {
   @@index([deletedAt])
   @@index([isAdmin, deletedAt])
   @@index([email, emailVerifiedAt])
-  @@index([reputationScore DESC])
+  @@index([reputationScore(sort: Desc)])
   @@map("users")
 }
 

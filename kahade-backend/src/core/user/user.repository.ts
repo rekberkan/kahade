@@ -2,6 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { User } from '@prisma/client';
 
+// ============================================================================
+// BANK-GRADE USER REPOSITORY
+// Implements: Password Management, Account Status, Security Features
+// ============================================================================
+
 export interface ICreateUser {
   email: string;
   passwordHash: string;
@@ -17,6 +22,17 @@ export interface IUpdateUser {
   lastLoginAt?: Date;
   failedLoginCount?: number;
   lockedUntil?: Date;
+  // Password management
+  passwordHash?: string;
+  passwordUpdatedAt?: Date;
+  passwordResetToken?: string | null;
+  passwordResetExpires?: Date | null;
+  // Account status
+  suspendedAt?: Date | null;
+  suspendedUntil?: Date | null;
+  suspendReason?: string | null;
+  // Failed login tracking
+  lastFailedLoginAt?: Date | null;
 }
 
 @Injectable()
@@ -49,6 +65,20 @@ export class UserRepository {
     });
   }
 
+  /**
+   * BANK-GRADE: Find user by password reset token
+   */
+  async findByPasswordResetToken(tokenHash: string): Promise<User | null> {
+    return this.prisma.user.findFirst({
+      where: {
+        passwordResetToken: tokenHash,
+        passwordResetExpires: {
+          gt: new Date(),
+        },
+      },
+    });
+  }
+
   async findAll(skip: number, take: number): Promise<{ users: User[]; total: number }> {
     const [users, total] = await Promise.all([
       this.prisma.user.findMany({
@@ -77,5 +107,49 @@ export class UserRepository {
 
   async count(): Promise<number> {
     return this.prisma.user.count();
+  }
+
+  /**
+   * BANK-GRADE: Find users with active suspensions
+   */
+  async findSuspendedUsers(): Promise<User[]> {
+    return this.prisma.user.findMany({
+      where: {
+        suspendedAt: { not: null },
+        OR: [
+          { suspendedUntil: null },
+          { suspendedUntil: { gt: new Date() } },
+        ],
+      },
+    });
+  }
+
+  /**
+   * BANK-GRADE: Find users with expired password reset tokens (for cleanup)
+   */
+  async findUsersWithExpiredResetTokens(): Promise<User[]> {
+    return this.prisma.user.findMany({
+      where: {
+        passwordResetToken: { not: null },
+        passwordResetExpires: { lt: new Date() },
+      },
+    });
+  }
+
+  /**
+   * BANK-GRADE: Bulk clear expired password reset tokens
+   */
+  async clearExpiredResetTokens(): Promise<number> {
+    const result = await this.prisma.user.updateMany({
+      where: {
+        passwordResetToken: { not: null },
+        passwordResetExpires: { lt: new Date() },
+      },
+      data: {
+        passwordResetToken: null,
+        passwordResetExpires: null,
+      },
+    });
+    return result.count;
   }
 }

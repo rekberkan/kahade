@@ -1,7 +1,31 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '@infrastructure/database/prisma.service';
-import { ICreateDispute, IUpdateDispute } from '@common/interfaces/dispute.interface';
-import { Dispute } from '@prisma/client';
+import { Dispute, DisputeStatus } from '@prisma/client';
+
+// ============================================================================
+// BANK-GRADE DISPUTE REPOSITORY
+// Implements: Proper Relations, Status Tracking, Audit Trail
+// ============================================================================
+
+export interface ICreateDispute {
+  orderId: string;
+  openedBy: string;
+  reason: string;
+  responseDeadline?: Date;
+}
+
+export interface IUpdateDispute {
+  status?: DisputeStatus;
+  arbitratorId?: string;
+  decision?: string;
+  sellerAmountMinor?: bigint;
+  buyerRefundMinor?: bigint;
+  adminNotes?: string;
+  resolutionNotes?: string;
+  escalatedAt?: Date;
+  escalatedTo?: string;
+  decidedAt?: Date;
+}
 
 @Injectable()
 export class DisputeRepository {
@@ -9,13 +33,19 @@ export class DisputeRepository {
 
   async create(data: ICreateDispute): Promise<Dispute> {
     return this.prisma.dispute.create({
-      data,
+      data: {
+        orderId: data.orderId,
+        openedBy: data.openedBy,
+        reason: data.reason,
+        responseDeadline: data.responseDeadline,
+        status: DisputeStatus.OPEN,
+      },
       include: {
-        reporter: { select: { id: true, name: true, email: true } },
-        transaction: {
+        opener: { select: { id: true, username: true, email: true } },
+        order: {
           include: {
-            buyer: { select: { id: true, name: true, email: true } },
-            seller: { select: { id: true, name: true, email: true } },
+            initiator: { select: { id: true, username: true, email: true } },
+            counterparty: { select: { id: true, username: true, email: true } },
           },
         },
       },
@@ -26,13 +56,35 @@ export class DisputeRepository {
     return this.prisma.dispute.findUnique({
       where: { id },
       include: {
-        reporter: { select: { id: true, name: true, email: true } },
-        transaction: {
+        opener: { select: { id: true, username: true, email: true } },
+        arbitrator: { select: { id: true, username: true, email: true } },
+        order: {
           include: {
-            buyer: { select: { id: true, name: true, email: true } },
-            seller: { select: { id: true, name: true, email: true } },
+            initiator: { select: { id: true, username: true, email: true } },
+            counterparty: { select: { id: true, username: true, email: true } },
           },
         },
+        evidences: {
+          include: {
+            submitter: { select: { id: true, username: true } },
+          },
+          orderBy: { submittedAt: 'desc' },
+        },
+        timeline: {
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+    });
+  }
+
+  async findByOrderId(orderId: string): Promise<Dispute | null> {
+    return this.prisma.dispute.findUnique({
+      where: { orderId },
+      include: {
+        opener: { select: { id: true, username: true, email: true } },
+        arbitrator: { select: { id: true, username: true, email: true } },
+        order: true,
+        evidences: true,
       },
     });
   }
@@ -42,13 +94,14 @@ export class DisputeRepository {
       this.prisma.dispute.findMany({
         skip,
         take,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { openedAt: 'desc' },
         include: {
-          reporter: { select: { id: true, name: true, email: true } },
-          transaction: {
-            include: {
-              buyer: { select: { id: true, name: true, email: true } },
-              seller: { select: { id: true, name: true, email: true } },
+          opener: { select: { id: true, username: true, email: true } },
+          order: {
+            select: {
+              id: true,
+              amountMinor: true,
+              status: true,
             },
           },
         },
@@ -59,35 +112,65 @@ export class DisputeRepository {
     return { disputes, total };
   }
 
-  async findByUser(userId: string, skip: number, take: number): Promise<{ disputes: Dispute[]; total: number }> {
+  async findByStatus(status: DisputeStatus, skip: number, take: number): Promise<{ disputes: Dispute[]; total: number }> {
     const [disputes, total] = await Promise.all([
       this.prisma.dispute.findMany({
-        where: { reporterId: userId },
+        where: { status },
         skip,
         take,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { openedAt: 'desc' },
         include: {
-          reporter: { select: { id: true, name: true, email: true } },
-          transaction: {
-            include: {
-              buyer: { select: { id: true, name: true, email: true } },
-              seller: { select: { id: true, name: true, email: true } },
-            },
-          },
+          opener: { select: { id: true, username: true, email: true } },
+          order: true,
         },
       }),
-      this.prisma.dispute.count({ where: { reporterId: userId } }),
+      this.prisma.dispute.count({ where: { status } }),
     ]);
 
     return { disputes, total };
   }
 
-  async findByTransaction(transactionId: string): Promise<Dispute[]> {
+  async findByUser(userId: string, skip: number, take: number): Promise<{ disputes: Dispute[]; total: number }> {
+    const [disputes, total] = await Promise.all([
+      this.prisma.dispute.findMany({
+        where: { openedBy: userId },
+        skip,
+        take,
+        orderBy: { openedAt: 'desc' },
+        include: {
+          opener: { select: { id: true, username: true, email: true } },
+          order: true,
+        },
+      }),
+      this.prisma.dispute.count({ where: { openedBy: userId } }),
+    ]);
+
+    return { disputes, total };
+  }
+
+  async findPendingResponse(): Promise<Dispute[]> {
     return this.prisma.dispute.findMany({
-      where: { transactionId },
-      orderBy: { createdAt: 'desc' },
+      where: {
+        status: DisputeStatus.OPEN,
+        responseDeadline: {
+          lte: new Date(),
+        },
+      },
       include: {
-        reporter: { select: { id: true, name: true, email: true } },
+        opener: { select: { id: true, username: true, email: true } },
+        order: true,
+      },
+    });
+  }
+
+  async findExpiredAppeals(): Promise<Dispute[]> {
+    return this.prisma.dispute.findMany({
+      where: {
+        status: DisputeStatus.DECIDED,
+        canAppeal: true,
+        appealDeadline: {
+          lte: new Date(),
+        },
       },
     });
   }
@@ -97,13 +180,40 @@ export class DisputeRepository {
       where: { id },
       data,
       include: {
-        reporter: { select: { id: true, name: true, email: true } },
-        transaction: {
-          include: {
-            buyer: { select: { id: true, name: true, email: true } },
-            seller: { select: { id: true, name: true, email: true } },
-          },
-        },
+        opener: { select: { id: true, username: true, email: true } },
+        arbitrator: { select: { id: true, username: true, email: true } },
+        order: true,
+      },
+    });
+  }
+
+  async assignArbitrator(id: string, arbitratorId: string): Promise<Dispute> {
+    return this.prisma.dispute.update({
+      where: { id },
+      data: {
+        arbitratorId,
+        status: DisputeStatus.UNDER_ARBITRATION,
+      },
+    });
+  }
+
+  async escalate(id: string, escalatedTo: string): Promise<Dispute> {
+    return this.prisma.dispute.update({
+      where: { id },
+      data: {
+        status: DisputeStatus.ESCALATED,
+        escalatedAt: new Date(),
+        escalatedTo,
+      },
+    });
+  }
+
+  async closeAppealWindow(id: string): Promise<Dispute> {
+    return this.prisma.dispute.update({
+      where: { id },
+      data: {
+        canAppeal: false,
+        status: DisputeStatus.CLOSED,
       },
     });
   }
@@ -112,5 +222,9 @@ export class DisputeRepository {
     return this.prisma.dispute.delete({
       where: { id },
     });
+  }
+
+  async count(where?: { status?: DisputeStatus }): Promise<number> {
+    return this.prisma.dispute.count({ where });
   }
 }

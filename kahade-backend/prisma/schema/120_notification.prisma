@@ -3,17 +3,24 @@
 // ============================================================================
 
 model OrderComment {
-  id          String   @id @default(uuid())
-  orderId     String   @map("order_id")
-  userId      String   @map("user_id")
-  message     String   @db.Text
+  id          String    @id @default(uuid())
+  orderId     String    @map("order_id")
+  userId      String    @map("user_id")
+  message     String    @db.Text
   attachments Json?
-  createdAt   DateTime @default(now()) @map("created_at")
+  
+  // Soft delete support
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz
+  deletedBy   String?   @map("deleted_by")
+  
+  createdAt   DateTime  @default(now()) @map("created_at")
 
-  order       Order    @relation(fields: [orderId], references: [id], onDelete: Restrict)
-  user        User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  order       Order     @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Restrict)
+  deleter     User?     @relation("CommentDeleter", fields: [deletedBy], references: [id], onDelete: SetNull)
 
   @@index([orderId, createdAt])
+  @@index([deletedAt])
   @@map("order_comments")
 }
 

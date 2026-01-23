@@ -32,12 +32,21 @@ model TransactionLimit {
   effectiveUntil           DateTime? @map("effective_until")
 
   isActive                 Boolean   @default(true) @map("is_active")
+  
+  // Override tracking
+  isOverridden             Boolean   @default(false) @map("is_overridden")
+  overrideReason           String?   @map("override_reason") @db.Text
+  overriddenBy             String?   @map("overridden_by")
+  overriddenAt             DateTime? @map("overridden_at") @db.Timestamptz
+  
   createdAt                DateTime  @default(now()) @map("created_at")
 
   user                     User?     @relation("TransactionLimitUser", fields: [userId], references: [id], onDelete: SetNull)
+  overrider                User?     @relation("LimitOverrider", fields: [overriddenBy], references: [id], onDelete: SetNull)
 
   @@index([userId, isActive])
   @@index([kycStatus, isActive])
+  @@index([overriddenBy])
   @@map("transaction_limits")
 }
 

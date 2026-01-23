@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '@infrastructure/database/prisma.service';
-import { Notification, NotificationType } from '@prisma/client';
+import { Notification } from '@prisma/client';
 
 export interface ICreateNotification {
   userId: string;
-  type: NotificationType;
+  type: string;
   title: string;
   message: string;
   metadata?: any;
@@ -17,8 +17,11 @@ export class NotificationRepository {
   async create(data: ICreateNotification): Promise<Notification> {
     return this.prisma.notification.create({
       data: {
-        ...data,
-        metadata: data.metadata ? JSON.stringify(data.metadata) : undefined,
+        userId: data.userId,
+        type: data.type,
+        title: data.title,
+        message: data.message,
+        metadata: data.metadata ?? undefined,
       },
     });
   }
@@ -47,7 +50,7 @@ export class NotificationRepository {
     return this.prisma.notification.findMany({
       where: {
         userId,
-        read: false,
+        readAt: null,
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -56,7 +59,7 @@ export class NotificationRepository {
   async markAsRead(id: string): Promise<Notification> {
     return this.prisma.notification.update({
       where: { id },
-      data: { read: true },
+      data: { readAt: new Date() },
     });
   }
 
@@ -64,9 +67,9 @@ export class NotificationRepository {
     const result = await this.prisma.notification.updateMany({
       where: {
         userId,
-        read: false,
+        readAt: null,
       },
-      data: { read: true },
+      data: { readAt: new Date() },
     });
 
     return result.count;
@@ -90,7 +93,7 @@ export class NotificationRepository {
     return this.prisma.notification.count({
       where: {
         userId,
-        read: false,
+        readAt: null,
       },
     });
   }

@@ -1,6 +1,11 @@
-import { Injectable, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '@infrastructure/database/prisma.service';
-import { Prisma } from '@prisma/client';
+import { KYCStatus } from '@prisma/client';
+
+// ============================================================================
+// BANK-GRADE WITHDRAWAL GUARD SERVICE
+// Implements: Velocity Controls, Daily/Monthly Limits, Cooling Period
+// ============================================================================
 
 export interface IWithdrawalLimitCheck {
   canWithdraw: boolean;
@@ -18,6 +23,32 @@ export interface IWithdrawalLimitCheck {
   isFlagged: boolean;
 }
 
+// Default limits based on KYC status
+const DEFAULT_LIMITS = {
+  [KYCStatus.NONE]: {
+    dailyLimitMinor: BigInt(5_000_000 * 100), // 5M IDR
+    perTxLimitMinor: BigInt(1_000_000 * 100), // 1M IDR
+    monthlyLimitMinor: BigInt(20_000_000 * 100), // 20M IDR
+  },
+  [KYCStatus.PENDING]: {
+    dailyLimitMinor: BigInt(25_000_000 * 100), // 25M IDR
+    perTxLimitMinor: BigInt(10_000_000 * 100), // 10M IDR
+    monthlyLimitMinor: BigInt(100_000_000 * 100), // 100M IDR
+  },
+  [KYCStatus.VERIFIED]: {
+    dailyLimitMinor: BigInt(100_000_000 * 100), // 100M IDR
+    perTxLimitMinor: BigInt(50_000_000 * 100), // 50M IDR
+    monthlyLimitMinor: BigInt(500_000_000 * 100), // 500M IDR
+  },
+  [KYCStatus.VERIFIED]: {
+    dailyLimitMinor: BigInt(500_000_000 * 100), // 500M IDR
+    perTxLimitMinor: BigInt(200_000_000 * 100), // 200M IDR
+    monthlyLimitMinor: BigInt(2_000_000_000 * 100), // 2B IDR
+  },
+};
+
+const DEFAULT_COOLING_PERIOD_MINUTES = 60;
+
 @Injectable()
 export class WithdrawalGuardService {
   private readonly logger = new Logger(WithdrawalGuardService.name);
@@ -30,6 +61,7 @@ export class WithdrawalGuardService {
    * Validates:
    * - Daily limit
    * - Monthly limit
+   * - Per-transaction limit
    * - Cooling period
    * - Velocity score
    * - Account flags
@@ -38,188 +70,196 @@ export class WithdrawalGuardService {
     userId: string,
     amountMinor: bigint,
   ): Promise<IWithdrawalLimitCheck> {
-    // Get or create transaction limit
-    let limit = await this.prisma.transactionLimit.findUnique({
-      where: { userId },
+    // Get user's KYC status
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { kycStatus: true },
     });
 
-    if (!limit) {
-      // Create default limits
-      limit = await this.prisma.transactionLimit.create({
-        data: {
-          userId,
-          dailyLimitMinor: BigInt(50_000_000 * 100), // 50M IDR
-          monthlyLimitMinor: BigInt(500_000_000 * 100), // 500M IDR
-          coolingPeriodMinutes: 60,
-          currentPeriodStart: new Date(),
-          monthStart: this.getMonthStart(),
-        },
-      });
-    }
+    const kycStatus = user?.kycStatus || KYCStatus.NONE;
 
-    // Reset period if needed
-    if (new Date() >= limit.nextReset) {
-      await this.resetDailyLimit(userId);
-      limit = await this.prisma.transactionLimit.findUnique({
-        where: { userId },
-      })!;
-    }
+    // Get or create transaction limit for user
+    let limit = await this.prisma.transactionLimit.findFirst({
+      where: { 
+        userId,
+        isActive: true,
+        effectiveFrom: { lte: new Date() },
+        OR: [
+          { effectiveUntil: null },
+          { effectiveUntil: { gte: new Date() } },
+        ],
+      },
+    });
 
-    // Reset monthly if needed
-    const currentMonthStart = this.getMonthStart();
-    if (limit.monthStart < currentMonthStart) {
-      await this.resetMonthlyLimit(userId);
-      limit = await this.prisma.transactionLimit.findUnique({
-        where: { userId },
-      })!;
-    }
+    // Use default limits if no custom limit exists
+    const defaultLimits = DEFAULT_LIMITS[kycStatus];
+    const dailyLimit = limit?.dailyLimitMinor || defaultLimits.dailyLimitMinor;
+    const perTxLimit = limit?.perTxLimitMinor || defaultLimits.perTxLimitMinor;
+    const monthlyLimit = limit?.monthlyLimitMinor || defaultLimits.monthlyLimitMinor;
+    const dailyWithdrawalLimit = limit?.dailyWithdrawalLimitMinor || dailyLimit;
 
-    // Calculate remaining limits
-    const dailyRemaining = limit.dailyLimitMinor - limit.dailyUsedMinor;
-    const monthlyRemaining = limit.monthlyLimitMinor - limit.monthlyUsedMinor;
+    // Get today's withdrawals
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const todayWithdrawals = await this.prisma.withdrawal.aggregate({
+      where: {
+        userId,
+        requestedAt: { gte: today },
+        status: { in: ['PENDING', 'APPROVED', 'COMPLETED'] },
+      },
+      _sum: { amountMinor: true },
+    });
+
+    // Get this month's withdrawals
+    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+    
+    const monthWithdrawals = await this.prisma.withdrawal.aggregate({
+      where: {
+        userId,
+        requestedAt: { gte: monthStart },
+        status: { in: ['PENDING', 'APPROVED', 'COMPLETED'] },
+      },
+      _sum: { amountMinor: true },
+    });
+
+    // Get last withdrawal
+    const lastWithdrawal = await this.prisma.withdrawal.findFirst({
+      where: { userId },
+      orderBy: { requestedAt: 'desc' },
+      select: { requestedAt: true },
+    });
+
+    const dailyUsed = todayWithdrawals._sum?.amountMinor || BigInt(0);
+    const monthlyUsed = monthWithdrawals._sum?.amountMinor || BigInt(0);
+    const dailyRemaining = dailyWithdrawalLimit - dailyUsed;
+    const monthlyRemaining = monthlyLimit - monthlyUsed;
+    const lastWithdrawalAt = lastWithdrawal?.requestedAt || null;
+    const minutesSinceLastWithdrawal = this.getMinutesSince(lastWithdrawalAt);
+
+    // Calculate velocity score
+    const velocityScore = await this.calculateVelocityScore(userId);
+    const isFlagged = velocityScore >= 75;
+
+    // Check per-transaction limit
+    if (amountMinor > perTxLimit) {
+      return {
+        canWithdraw: false,
+        reason: `Amount exceeds per-transaction limit of ${this.formatAmount(perTxLimit)}`,
+        dailyUsed,
+        dailyLimit: dailyWithdrawalLimit,
+        dailyRemaining,
+        monthlyUsed,
+        monthlyLimit,
+        monthlyRemaining,
+        lastWithdrawalAt,
+        coolingPeriodMinutes: DEFAULT_COOLING_PERIOD_MINUTES,
+        minutesSinceLastWithdrawal,
+        velocityScore,
+        isFlagged,
+      };
+    }
 
     // Check daily limit
-    if (limit.dailyUsedMinor + amountMinor > limit.dailyLimitMinor) {
+    if (dailyUsed + amountMinor > dailyWithdrawalLimit) {
       return {
         canWithdraw: false,
         reason: `Daily withdrawal limit exceeded. Remaining: ${this.formatAmount(dailyRemaining)}`,
-        dailyUsed: limit.dailyUsedMinor,
-        dailyLimit: limit.dailyLimitMinor,
+        dailyUsed,
+        dailyLimit: dailyWithdrawalLimit,
         dailyRemaining,
-        monthlyUsed: limit.monthlyUsedMinor,
-        monthlyLimit: limit.monthlyLimitMinor,
+        monthlyUsed,
+        monthlyLimit,
         monthlyRemaining,
-        lastWithdrawalAt: limit.lastWithdrawalAt,
-        coolingPeriodMinutes: limit.coolingPeriodMinutes,
-        minutesSinceLastWithdrawal: this.getMinutesSince(limit.lastWithdrawalAt),
-        velocityScore: limit.velocityScore,
-        isFlagged: limit.isFlagged,
+        lastWithdrawalAt,
+        coolingPeriodMinutes: DEFAULT_COOLING_PERIOD_MINUTES,
+        minutesSinceLastWithdrawal,
+        velocityScore,
+        isFlagged,
       };
     }
 
     // Check monthly limit
-    if (limit.monthlyUsedMinor + amountMinor > limit.monthlyLimitMinor) {
+    if (monthlyUsed + amountMinor > monthlyLimit) {
       return {
         canWithdraw: false,
         reason: `Monthly withdrawal limit exceeded. Remaining: ${this.formatAmount(monthlyRemaining)}`,
-        dailyUsed: limit.dailyUsedMinor,
-        dailyLimit: limit.dailyLimitMinor,
+        dailyUsed,
+        dailyLimit: dailyWithdrawalLimit,
         dailyRemaining,
-        monthlyUsed: limit.monthlyUsedMinor,
-        monthlyLimit: limit.monthlyLimitMinor,
+        monthlyUsed,
+        monthlyLimit,
         monthlyRemaining,
-        lastWithdrawalAt: limit.lastWithdrawalAt,
-        coolingPeriodMinutes: limit.coolingPeriodMinutes,
-        minutesSinceLastWithdrawal: this.getMinutesSince(limit.lastWithdrawalAt),
-        velocityScore: limit.velocityScore,
-        isFlagged: limit.isFlagged,
+        lastWithdrawalAt,
+        coolingPeriodMinutes: DEFAULT_COOLING_PERIOD_MINUTES,
+        minutesSinceLastWithdrawal,
+        velocityScore,
+        isFlagged,
       };
     }
 
     // Check cooling period
-    if (limit.lastWithdrawalAt) {
-      const minutesSince = this.getMinutesSince(limit.lastWithdrawalAt);
-      if (minutesSince !== null && minutesSince < limit.coolingPeriodMinutes) {
-        const minutesRemaining = limit.coolingPeriodMinutes - minutesSince;
-        return {
-          canWithdraw: false,
-          reason: `Cooling period active. Please wait ${minutesRemaining} minutes.`,
-          dailyUsed: limit.dailyUsedMinor,
-          dailyLimit: limit.dailyLimitMinor,
-          dailyRemaining,
-          monthlyUsed: limit.monthlyUsedMinor,
-          monthlyLimit: limit.monthlyLimitMinor,
-          monthlyRemaining,
-          lastWithdrawalAt: limit.lastWithdrawalAt,
-          coolingPeriodMinutes: limit.coolingPeriodMinutes,
-          minutesSinceLastWithdrawal: minutesSince,
-          velocityScore: limit.velocityScore,
-          isFlagged: limit.isFlagged,
-        };
-      }
+    if (minutesSinceLastWithdrawal !== null && minutesSinceLastWithdrawal < DEFAULT_COOLING_PERIOD_MINUTES) {
+      const minutesRemaining = DEFAULT_COOLING_PERIOD_MINUTES - minutesSinceLastWithdrawal;
+      return {
+        canWithdraw: false,
+        reason: `Cooling period active. Please wait ${minutesRemaining} minutes.`,
+        dailyUsed,
+        dailyLimit: dailyWithdrawalLimit,
+        dailyRemaining,
+        monthlyUsed,
+        monthlyLimit,
+        monthlyRemaining,
+        lastWithdrawalAt,
+        coolingPeriodMinutes: DEFAULT_COOLING_PERIOD_MINUTES,
+        minutesSinceLastWithdrawal,
+        velocityScore,
+        isFlagged,
+      };
     }
 
     // Check if flagged
-    if (limit.isFlagged) {
+    if (isFlagged) {
       this.logger.warn(
-        `User ${userId} is flagged for suspicious activity (score: ${limit.velocityScore})`,
+        `User ${userId} is flagged for suspicious activity (score: ${velocityScore})`,
       );
       // Don't block, but log for manual review
     }
 
     return {
       canWithdraw: true,
-      dailyUsed: limit.dailyUsedMinor,
-      dailyLimit: limit.dailyLimitMinor,
+      dailyUsed,
+      dailyLimit: dailyWithdrawalLimit,
       dailyRemaining,
-      monthlyUsed: limit.monthlyUsedMinor,
-      monthlyLimit: limit.monthlyLimitMinor,
+      monthlyUsed,
+      monthlyLimit,
       monthlyRemaining,
-      lastWithdrawalAt: limit.lastWithdrawalAt,
-      coolingPeriodMinutes: limit.coolingPeriodMinutes,
-      minutesSinceLastWithdrawal: this.getMinutesSince(limit.lastWithdrawalAt),
-      velocityScore: limit.velocityScore,
-      isFlagged: limit.isFlagged,
+      lastWithdrawalAt,
+      coolingPeriodMinutes: DEFAULT_COOLING_PERIOD_MINUTES,
+      minutesSinceLastWithdrawal,
+      velocityScore,
+      isFlagged,
     };
   }
 
   /**
-   * Record withdrawal and update limits
+   * Calculate velocity score based on recent withdrawal patterns
    */
-  async recordWithdrawal(
-    userId: string,
-    amountMinor: bigint,
-    ipAddress: string,
-    deviceFingerprint?: string,
-  ): Promise<void> {
-    await this.prisma.$transaction(async (tx) => {
-      // Update transaction limit
-      await tx.transactionLimit.update({
-        where: { userId },
-        data: {
-          dailyUsedMinor: { increment: amountMinor },
-          monthlyUsedMinor: { increment: amountMinor },
-          lastWithdrawalAt: new Date(),
-        },
-      });
-
-      // Log velocity
-      await tx.withdrawalVelocityLog.create({
-        data: {
-          userId,
-          amountMinor,
-          ipAddress,
-          deviceFingerprint,
-          timestamp: new Date(),
-        },
-      });
-
-      // Calculate velocity score
-      await this.updateVelocityScore(userId, tx);
-    });
-  }
-
-  /**
-   * Update velocity score based on recent withdrawal patterns
-   */
-  private async updateVelocityScore(
-    userId: string,
-    tx: Prisma.TransactionClient,
-  ): Promise<void> {
+  private async calculateVelocityScore(userId: string): Promise<number> {
     const now = new Date();
     const hourAgo = new Date(now.getTime() - 60 * 60 * 1000);
     const dayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
     const [hourly, daily, weekly] = await Promise.all([
-      tx.withdrawalVelocityLog.count({
-        where: { userId, timestamp: { gte: hourAgo } },
+      this.prisma.withdrawal.count({
+        where: { userId, requestedAt: { gte: hourAgo } },
       }),
-      tx.withdrawalVelocityLog.count({
-        where: { userId, timestamp: { gte: dayAgo } },
+      this.prisma.withdrawal.count({
+        where: { userId, requestedAt: { gte: dayAgo } },
       }),
-      tx.withdrawalVelocityLog.count({
-        where: { userId, timestamp: { gte: weekAgo } },
+      this.prisma.withdrawal.count({
+        where: { userId, requestedAt: { gte: weekAgo } },
       }),
     ]);
 
@@ -238,53 +278,22 @@ export class WithdrawalGuardService {
     if (weekly >= 30) score += 30;
     else if (weekly >= 20) score += 15;
 
-    // Update transaction limit
-    await tx.transactionLimit.update({
-      where: { userId },
+    return score;
+  }
+
+  /**
+   * Flag a withdrawal for manual review
+   */
+  async flagWithdrawal(withdrawalId: string, reason: string): Promise<void> {
+    await this.prisma.withdrawal.update({
+      where: { id: withdrawalId },
       data: {
-        velocityScore: score,
-        isFlagged: score >= 75, // Auto-flag if score >= 75
+        isFlaggedBySystem: true,
+        flagReason: reason,
       },
     });
 
-    if (score >= 75) {
-      this.logger.warn(
-        `User ${userId} flagged for suspicious withdrawal velocity (score: ${score})`,
-      );
-    }
-  }
-
-  private async resetDailyLimit(userId: string): Promise<void> {
-    await this.prisma.transactionLimit.update({
-      where: { userId },
-      data: {
-        dailyUsedMinor: BigInt(0),
-        currentPeriodStart: new Date(),
-        nextReset: this.getNextReset(),
-      },
-    });
-  }
-
-  private async resetMonthlyLimit(userId: string): Promise<void> {
-    await this.prisma.transactionLimit.update({
-      where: { userId },
-      data: {
-        monthlyUsedMinor: BigInt(0),
-        monthStart: this.getMonthStart(),
-      },
-    });
-  }
-
-  private getNextReset(): Date {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(0, 0, 0, 0);
-    return tomorrow;
-  }
-
-  private getMonthStart(): Date {
-    const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), 1);
+    this.logger.warn(`Withdrawal ${withdrawalId} flagged: ${reason}`);
   }
 
   private getMinutesSince(date: Date | null): number | null {

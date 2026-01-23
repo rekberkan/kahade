@@ -5,6 +5,11 @@ import { PaginationUtil, PaginationParams } from '@common/utils/pagination.util'
 import { IUserResponse, KYCStatus } from '@common/interfaces/user.interface';
 import { User } from '@prisma/client';
 
+// ============================================================================
+// BANK-GRADE USER SERVICE
+// Implements: Password Management, Account Status, Security Features
+// ============================================================================
+
 @Injectable()
 export class UserService {
   constructor(private readonly userRepository: UserRepository) {}
@@ -73,8 +78,135 @@ export class UserService {
     await this.userRepository.delete(id);
   }
 
+  // ============================================================================
+  // PASSWORD MANAGEMENT
+  // ============================================================================
+
+  /**
+   * BANK-GRADE: Update user password
+   */
+  async updatePassword(userId: string, newPasswordHash: string): Promise<void> {
+    await this.userRepository.update(userId, {
+      passwordHash: newPasswordHash,
+      passwordUpdatedAt: new Date(),
+    });
+  }
+
+  /**
+   * BANK-GRADE: Set password reset token
+   */
+  async setPasswordResetToken(
+    userId: string,
+    tokenHash: string,
+    expiresAt: Date,
+  ): Promise<void> {
+    await this.userRepository.update(userId, {
+      passwordResetToken: tokenHash,
+      passwordResetExpires: expiresAt,
+    });
+  }
+
+  /**
+   * BANK-GRADE: Find user by password reset token
+   */
+  async findByPasswordResetToken(tokenHash: string): Promise<User | null> {
+    return this.userRepository.findByPasswordResetToken(tokenHash);
+  }
+
+  /**
+   * BANK-GRADE: Clear password reset token
+   */
+  async clearPasswordResetToken(userId: string): Promise<void> {
+    await this.userRepository.update(userId, {
+      passwordResetToken: null,
+      passwordResetExpires: null,
+    });
+  }
+
+  // ============================================================================
+  // ACCOUNT STATUS MANAGEMENT
+  // ============================================================================
+
+  /**
+   * BANK-GRADE: Suspend user account
+   */
+  async suspendUser(
+    userId: string,
+    reason: string,
+    suspendedUntil?: Date,
+  ): Promise<void> {
+    await this.userRepository.update(userId, {
+      suspendedAt: new Date(),
+      suspendedUntil: suspendedUntil || null,
+      suspendReason: reason,
+    });
+  }
+
+  /**
+   * BANK-GRADE: Unsuspend user account
+   */
+  async unsuspendUser(userId: string): Promise<void> {
+    await this.userRepository.update(userId, {
+      suspendedAt: null,
+      suspendedUntil: null,
+      suspendReason: null,
+    });
+  }
+
+  /**
+   * BANK-GRADE: Check if user is suspended
+   */
+  async isUserSuspended(userId: string): Promise<boolean> {
+    const user = await this.findById(userId);
+    if (!user.suspendedAt) {
+      return false;
+    }
+    
+    // Check if suspension has expired
+    if (user.suspendedUntil && new Date(user.suspendedUntil) < new Date()) {
+      // Auto-unsuspend
+      await this.unsuspendUser(userId);
+      return false;
+    }
+    
+    return true;
+  }
+
+  // ============================================================================
+  // FAILED LOGIN TRACKING
+  // ============================================================================
+
+  /**
+   * BANK-GRADE: Increment failed login count
+   */
+  async incrementFailedLogin(userId: string): Promise<number> {
+    const user = await this.findById(userId);
+    const newCount = (user.failedLoginCount || 0) + 1;
+    
+    await this.userRepository.update(userId, {
+      failedLoginCount: newCount,
+      lastFailedLoginAt: new Date(),
+    });
+    
+    return newCount;
+  }
+
+  /**
+   * BANK-GRADE: Reset failed login count
+   */
+  async resetFailedLogin(userId: string): Promise<void> {
+    await this.userRepository.update(userId, {
+      failedLoginCount: 0,
+      lastFailedLoginAt: null,
+    });
+  }
+
+  // ============================================================================
+  // UTILITY
+  // ============================================================================
+
   sanitizeUser(user: any): IUserResponse {
-    const { passwordHash, ...sanitized } = user;
+    const { passwordHash, passwordResetToken, passwordResetExpires, totpSecretEnc, backupCodesHash, ...sanitized } = user;
     return {
       ...sanitized,
       kycStatus: user.kycStatus as KYCStatus,
