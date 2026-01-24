@@ -2,11 +2,11 @@
  * KAHADE PROFILE PAGE
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
-  User, Mail, Phone, Shield, Star, Calendar, CheckCircle2,
-  Upload, Camera, BadgeCheck, AlertCircle
+  User, Mail, Phone, Star, Calendar, CheckCircle2,
+  Upload, Camera, BadgeCheck, AlertCircle, Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,6 +14,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/contexts/AuthContext';
+import { userApi } from '@/lib/api';
 
 const kycStatusConfig: Record<string, { label: string; color: string; icon: typeof CheckCircle2 }> = {
   NONE: { label: 'Belum Verifikasi', color: 'text-gray-500 bg-gray-500/10', icon: AlertCircle },
@@ -23,25 +24,89 @@ const kycStatusConfig: Record<string, { label: string; color: string; icon: type
 };
 
 export default function Profile() {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [stats, setStats] = useState({
+    totalTransactions: 0,
+    completedTransactions: 0,
+    disputeCount: 0,
+  });
   const [formData, setFormData] = useState({
-    name: user?.username || '',
+    username: user?.username || '',
     email: user?.email || '',
     phone: user?.phone || '',
   });
 
+  useEffect(() => {
+    if (user) {
+      setFormData({
+        username: user.username || '',
+        email: user.email || '',
+        phone: user.phone || '',
+      });
+      fetchStats();
+    }
+  }, [user]);
+
+  const fetchStats = async () => {
+    try {
+      const response = await userApi.getStats();
+      setStats(response.data);
+    } catch (error) {
+      console.error('Failed to fetch stats:', error);
+    }
+  };
+
   const kycStatus = kycStatusConfig[user?.kycStatus || 'NONE'];
 
-  const handleSave = () => {
-    toast.success('Profil berhasil diperbarui');
-    setIsEditing(false);
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      await userApi.updateProfile({
+        username: formData.username,
+        phone: formData.phone,
+      });
+      toast.success('Profil berhasil diperbarui');
+      setIsEditing(false);
+      refreshUser();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Gagal memperbarui profil');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleStartKYC = () => {
-    toast.info('Fitur KYC coming soon', {
+    toast.info('Fitur KYC dalam pengembangan', {
       description: 'Verifikasi identitas akan segera tersedia.'
     });
+  };
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('File harus berupa gambar');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Ukuran file maksimal 5MB');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('avatar', file);
+
+    try {
+      await userApi.uploadAvatar(formData);
+      toast.success('Avatar berhasil diperbarui');
+      refreshUser();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Gagal mengupload avatar');
+    }
   };
 
   return (
@@ -55,12 +120,26 @@ export default function Profile() {
         >
           <div className="flex flex-col sm:flex-row items-center gap-6">
             <div className="relative">
-              <div className="w-24 h-24 rounded-full bg-gradient-to-br from-accent to-primary flex items-center justify-center text-white text-3xl font-bold">
-                {user?.username?.charAt(0).toUpperCase() || 'U'}
-              </div>
-              <button className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-accent flex items-center justify-center text-white hover:bg-accent/80 transition-colors">
+              {user?.avatarUrl ? (
+                <img 
+                  src={user.avatarUrl} 
+                  alt={user.username}
+                  className="w-24 h-24 rounded-full object-cover"
+                />
+              ) : (
+                <div className="w-24 h-24 rounded-full bg-gradient-to-br from-accent to-primary flex items-center justify-center text-white text-3xl font-bold">
+                  {user?.username?.charAt(0).toUpperCase() || 'U'}
+                </div>
+              )}
+              <label className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-accent flex items-center justify-center text-white hover:bg-accent/80 transition-colors cursor-pointer">
                 <Camera className="w-4 h-4" />
-              </button>
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  className="hidden" 
+                  onChange={handleAvatarUpload}
+                />
+              </label>
             </div>
             <div className="text-center sm:text-left flex-1">
               <h2 className="text-2xl font-display font-bold">{user?.username || 'User'}</h2>
@@ -68,10 +147,10 @@ export default function Profile() {
               <div className="flex items-center gap-4 mt-3 justify-center sm:justify-start">
                 <div className="flex items-center gap-1">
                   <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
-                  <span className="font-medium">{user?.reputationScore || 0}</span>
+                  <span className="font-medium">{user?.reputationScore?.toFixed(1) || '0.0'}</span>
                 </div>
                 <div className="text-sm text-muted-foreground">
-                  {user?.totalTransactions || 0} transaksi
+                  {stats.totalTransactions} transaksi
                 </div>
               </div>
             </div>
@@ -137,11 +216,18 @@ export default function Profile() {
               </Button>
             ) : (
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => setIsEditing(false)}>
+                <Button variant="outline" size="sm" onClick={() => setIsEditing(false)} disabled={isSaving}>
                   Batal
                 </Button>
-                <Button size="sm" className="btn-accent" onClick={handleSave}>
-                  Simpan
+                <Button size="sm" className="btn-accent" onClick={handleSave} disabled={isSaving}>
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Menyimpan...
+                    </>
+                  ) : (
+                    'Simpan'
+                  )}
                 </Button>
               </div>
             )}
@@ -150,13 +236,13 @@ export default function Profile() {
           <div className="space-y-4">
             <div className="grid sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Nama Lengkap</Label>
+                <Label htmlFor="username">Username</Label>
                 <div className="relative">
                   <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                   <Input
-                    id="name"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    id="username"
+                    value={formData.username}
+                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
                     disabled={!isEditing}
                     className="pl-10 bg-white/5 border-white/10"
                   />
@@ -208,21 +294,21 @@ export default function Profile() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="p-4 rounded-xl bg-white/5 text-center">
               <div className="text-2xl font-display font-bold gradient-text">
-                {user?.totalTransactions || 0}
+                {stats.totalTransactions}
               </div>
               <div className="text-sm text-muted-foreground">Total Transaksi</div>
             </div>
             <div className="p-4 rounded-xl bg-white/5 text-center">
               <div className="text-2xl font-display font-bold text-emerald-500">
-                {user?.reputationScore || 0}
+                {stats.completedTransactions}
               </div>
-              <div className="text-sm text-muted-foreground">Rating</div>
+              <div className="text-sm text-muted-foreground">Selesai</div>
             </div>
             <div className="p-4 rounded-xl bg-white/5 text-center">
-              <div className="text-2xl font-display font-bold text-accent">
-                0
+              <div className="text-2xl font-display font-bold text-amber-500">
+                {user?.reputationScore?.toFixed(1) || '0.0'}
               </div>
-              <div className="text-sm text-muted-foreground">Dispute</div>
+              <div className="text-sm text-muted-foreground">Rating</div>
             </div>
             <div className="p-4 rounded-xl bg-white/5 text-center">
               <div className="flex items-center justify-center gap-1 text-muted-foreground">

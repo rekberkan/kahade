@@ -1,9 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as speakeasy from 'speakeasy';
+import * as crypto from 'crypto';
 import * as QRCode from 'qrcode';
-import { CryptoUtil } from '@common/utils/crypto.util';
-import { HashUtil } from '@common/utils/hash.util';
+import { CryptoUtil, HashUtil } from '@common/utils/crypto.util';
 
 export interface IMFASetup {
   secret: string;           // Encrypted secret to store in DB
@@ -14,7 +13,12 @@ export interface IMFASetup {
 
 @Injectable()
 export class MFAService {
-  constructor(private readonly configService: ConfigService) {}
+  private readonly logger = new Logger(MFAService.name);
+  private readonly encryptionKey: string;
+
+  constructor(private readonly configService: ConfigService) {
+    this.encryptionKey = this.configService.get<string>('MFA_ENCRYPTION_KEY', 'default-key-change-in-production');
+  }
 
   /**
    * Generate MFA secret and QR code for user setup
@@ -22,14 +26,14 @@ export class MFAService {
   async setupMFA(userId: string, userEmail: string): Promise<IMFASetup> {
     const appName = this.configService.get<string>('app.name', 'Kahade');
 
-    // Generate TOTP secret
-    const secret = speakeasy.generateSecret({
-      name: `${appName} (${userEmail})`,
-      length: 32,
-    });
+    // Generate TOTP secret (base32 encoded)
+    const secret = CryptoUtil.generateTotpSecret();
 
-    // Generate QR code
-    const qrCodeDataURL = await QRCode.toDataURL(secret.otpauth_url || '');
+    // Generate otpauth URL
+    const otpauthUrl = `otpauth://totp/${encodeURIComponent(appName)}:${encodeURIComponent(userEmail)}?secret=${secret}&issuer=${encodeURIComponent(appName)}&algorithm=SHA1&digits=6&period=30`;
+
+    // Generate QR code data URL
+    const qrCodeDataURL = await this.generateQRCodeDataURL(otpauthUrl);
 
     // Generate 10 backup codes
     const backupCodesPlain = Array.from({ length: 10 }, () =>
@@ -42,7 +46,7 @@ export class MFAService {
     );
 
     // Encrypt secret for storage
-    const encryptedSecret = await CryptoUtil.encrypt(secret.base32);
+    const encryptedSecret = CryptoUtil.encrypt(secret, this.encryptionKey);
 
     return {
       secret: encryptedSecret,
@@ -62,20 +66,64 @@ export class MFAService {
   ): Promise<boolean> {
     try {
       // Decrypt secret
-      const secret = await CryptoUtil.decrypt(encryptedSecret);
+      const secret = CryptoUtil.decrypt(encryptedSecret, this.encryptionKey);
 
-      // Verify token
-      const verified = speakeasy.totp.verify({
-        secret,
-        encoding: 'base32',
-        token,
-        window, // Allow 1 step before/after (30 seconds)
-      });
+      // Verify token using TOTP algorithm
+      const currentTime = Math.floor(Date.now() / 1000 / 30);
+      
+      for (let i = -window; i <= window; i++) {
+        const expectedToken = this.generateTOTP(secret, currentTime + i);
+        if (CryptoUtil.timingSafeEqual(expectedToken, token)) {
+          return true;
+        }
+      }
 
-      return verified;
+      return false;
     } catch (error) {
+      this.logger.error(`TOTP verification error: ${error.message}`);
       return false;
     }
+  }
+
+  /**
+   * Generate TOTP token for a given time counter
+   */
+  private generateTOTP(secret: string, counter: number): string {
+    // Decode base32 secret
+    const base32Chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+    const secretUpper = secret.toUpperCase().replace(/=+$/, '');
+    let bits = '';
+    for (const char of secretUpper) {
+      const val = base32Chars.indexOf(char);
+      if (val >= 0) {
+        bits += val.toString(2).padStart(5, '0');
+      }
+    }
+    const bytes: number[] = [];
+    for (let i = 0; i + 8 <= bits.length; i += 8) {
+      bytes.push(parseInt(bits.substr(i, 8), 2));
+    }
+    const secretBuffer = Buffer.from(bytes);
+
+    // Create counter buffer
+    const counterBuffer = Buffer.alloc(8);
+    counterBuffer.writeBigInt64BE(BigInt(counter));
+
+    // Generate HMAC-SHA1
+    const hmac = crypto.createHmac('sha1', secretBuffer);
+    hmac.update(counterBuffer);
+    const hash = hmac.digest();
+
+    // Dynamic truncation
+    const offset = hash[hash.length - 1] & 0xf;
+    const code = (
+      ((hash[offset] & 0x7f) << 24) |
+      ((hash[offset + 1] & 0xff) << 16) |
+      ((hash[offset + 2] & 0xff) << 8) |
+      (hash[offset + 3] & 0xff)
+    ) % 1000000;
+
+    return code.toString().padStart(6, '0');
   }
 
   /**
@@ -86,7 +134,7 @@ export class MFAService {
     providedCode: string,
   ): Promise<{ valid: boolean; codeIndex?: number }> {
     for (let i = 0; i < backupCodesHashed.length; i++) {
-      const isValid = await HashUtil.compare(providedCode, backupCodesHashed[i]);
+      const isValid = await HashUtil.verify(providedCode, backupCodesHashed[i]);
       if (isValid) {
         return { valid: true, codeIndex: i };
       }
@@ -103,8 +151,8 @@ export class MFAService {
     let code = '';
 
     for (let i = 0; i < 8; i++) {
-      if (i === 4) code += '-'; // Add hyphen in the middle
-      const randomIndex = Math.floor(Math.random() * chars.length);
+      if (i === 4) code += '-';
+      const randomIndex = crypto.randomInt(chars.length);
       code += chars[randomIndex];
     }
 
@@ -130,5 +178,29 @@ export class MFAService {
       backupCodes: backupCodesHashed,
       backupCodesPlain,
     };
+  }
+
+  /**
+   * Generate QR code data URL using qrcode library
+   */
+  private async generateQRCodeDataURL(data: string): Promise<string> {
+    try {
+      const qrCodeDataURL = await QRCode.toDataURL(data, {
+        errorCorrectionLevel: 'M',
+        type: 'image/png',
+        margin: 2,
+        width: 256,
+        color: {
+          dark: '#000000',
+          light: '#FFFFFF',
+        },
+      });
+      return qrCodeDataURL;
+    } catch (error) {
+      this.logger.error(`QR code generation error: ${error.message}`);
+      // Fallback: return otpauth URL as base64 encoded text
+      const encoded = Buffer.from(data).toString('base64');
+      return `data:text/plain;base64,${encoded}`;
+    }
   }
 }

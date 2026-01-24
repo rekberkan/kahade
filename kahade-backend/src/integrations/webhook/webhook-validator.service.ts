@@ -126,12 +126,12 @@ export class WebhookValidatorService {
       case 'xendit':
         const expectedToken = this.configService.get<string>(
           'xendit.callbackToken',
-        );
+        ) || '';
         isValid = this.validateXenditSignature(signature, expectedToken);
         break;
 
       case 'custom':
-        const secret = this.configService.get<string>('webhook.secret');
+        const secret = this.configService.get<string>('webhook.secret') || '';
         const payload = JSON.stringify(body);
         isValid = this.validateHMACSignature(payload, signature, secret);
         break;

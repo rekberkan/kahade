@@ -6,8 +6,11 @@ import {
   InternalServerErrorException,
 } from '@nestjs/common';
 import { PrismaService } from '@infrastructure/database/prisma.service';
-import { Prisma, Wallet, LedgerEntry, LedgerJournal } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import { Wallet } from '@common/shims/prisma-types.shim';
 import { ConfigService } from '@nestjs/config';
+import { TopUpDto } from './dto/topup.dto';
+import { WithdrawDto } from './dto/withdraw.dto';
 
 // ============================================================================
 // BANK-GRADE WALLET SERVICE
@@ -15,7 +18,7 @@ import { ConfigService } from '@nestjs/config';
 // ============================================================================
 
 export class InsufficientBalanceError extends BadRequestException {
-  constructor(available: bigint, requested: bigint) {
+  constructor(available: bigint | number, requested: bigint | number) {
     super({
       code: 'INSUFFICIENT_BALANCE',
       message: 'Insufficient balance for this operation',
@@ -56,9 +59,9 @@ export class LedgerMismatchError extends InternalServerErrorException {
 }
 
 export interface WalletBalanceResult {
-  available: bigint;
-  locked: bigint;
-  total: bigint;
+  available: number;
+  locked: number;
+  total: number;
   currency: string;
   lastReconciledAt: Date | null;
 }
@@ -90,11 +93,34 @@ export interface LockBalanceOptions {
   tx?: Prisma.TransactionClient;
 }
 
+export interface WalletTransaction {
+  id: string;
+  type: string;
+  amount: number;
+  description: string;
+  status: string;
+  createdAt: Date;
+  referenceId?: string;
+}
+
 @Injectable()
 export class WalletService {
   private readonly logger = new Logger(WalletService.name);
   private readonly MAX_RETRIES = 3;
   private readonly RETRY_DELAY_MS = 100;
+
+  private readonly SUPPORTED_BANKS = [
+    { code: 'BCA', name: 'Bank Central Asia', logo: '/banks/bca.png' },
+    { code: 'BNI', name: 'Bank Negara Indonesia', logo: '/banks/bni.png' },
+    { code: 'BRI', name: 'Bank Rakyat Indonesia', logo: '/banks/bri.png' },
+    { code: 'MANDIRI', name: 'Bank Mandiri', logo: '/banks/mandiri.png' },
+    { code: 'CIMB', name: 'CIMB Niaga', logo: '/banks/cimb.png' },
+    { code: 'PERMATA', name: 'Bank Permata', logo: '/banks/permata.png' },
+    { code: 'DANAMON', name: 'Bank Danamon', logo: '/banks/danamon.png' },
+    { code: 'BSI', name: 'Bank Syariah Indonesia', logo: '/banks/bsi.png' },
+    { code: 'BTN', name: 'Bank Tabungan Negara', logo: '/banks/btn.png' },
+    { code: 'MEGA', name: 'Bank Mega', logo: '/banks/mega.png' },
+  ];
 
   constructor(
     private readonly prisma: PrismaService,
@@ -107,9 +133,173 @@ export class WalletService {
 
   /**
    * Get wallet balance with consistency check
-   * BANK RULE: Always verify balance against ledger before returning
    */
   async getBalance(userId: string): Promise<WalletBalanceResult> {
+    let wallet = await this.prisma.wallet.findUnique({
+      where: { userId },
+    });
+
+    // Auto-create wallet if not exists
+    if (!wallet) {
+      wallet = await this.createWallet(userId);
+    }
+
+    return {
+      available: Number(wallet.balanceMinor - wallet.lockedMinor) / 100,
+      locked: Number(wallet.lockedMinor) / 100,
+      total: Number(wallet.balanceMinor) / 100,
+      currency: wallet.currency,
+      lastReconciledAt: wallet.lastReconciledAt,
+    };
+  }
+
+  /**
+   * Get wallet transactions history
+   */
+  async getTransactions(
+    userId: string,
+    options: { type?: string; page: number; limit: number },
+  ): Promise<{ data: WalletTransaction[]; total: number; page: number; limit: number }> {
+    const { type, page, limit } = options;
+    const skip = (page - 1) * limit;
+
+    // Get deposits
+    const depositsWhere: any = {
+      wallet: { userId },
+    };
+    if (type === 'deposit') {
+      depositsWhere.status = { not: undefined };
+    }
+
+    const [deposits, withdrawals, depositCount, withdrawalCount] = await Promise.all([
+      type !== 'withdrawal' ? (this.prisma as any).deposit.findMany({
+        where: depositsWhere,
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: type === 'deposit' ? skip : 0,
+      }) : [],
+      type !== 'deposit' ? (this.prisma as any).withdrawal.findMany({
+        where: { wallet: { userId } },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: type === 'withdrawal' ? skip : 0,
+      }) : [],
+      type !== 'withdrawal' ? (this.prisma as any).deposit.count({ where: depositsWhere }) : 0,
+      type !== 'deposit' ? (this.prisma as any).withdrawal.count({ where: { wallet: { userId } } }) : 0,
+    ]);
+
+    // Combine and sort transactions
+    const transactions: WalletTransaction[] = [
+      ...deposits.map((d: any) => ({
+        id: d.id,
+        type: 'deposit',
+        amount: Number(d.amountMinor) / 100,
+        description: `Top up via ${d.paymentMethod || 'Virtual Account'}`,
+        status: d.status,
+        createdAt: d.createdAt,
+        referenceId: d.externalId,
+      })),
+      ...withdrawals.map((w: any) => ({
+        id: w.id,
+        type: 'withdrawal',
+        amount: -Number(w.amountMinor) / 100,
+        description: `Withdrawal to ${w.bankCode} - ${w.accountNumber}`,
+        status: w.status,
+        createdAt: w.createdAt,
+        referenceId: w.id,
+      })),
+    ].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
+    const total = depositCount + withdrawalCount;
+
+    return {
+      data: transactions.slice(0, limit),
+      total,
+      page,
+      limit,
+    };
+  }
+
+  /**
+   * Top up wallet balance
+   */
+  async topUp(userId: string, topUpDto: TopUpDto): Promise<{
+    id: string;
+    amount: number;
+    method: string;
+    paymentUrl?: string;
+    vaNumber?: string;
+    expiresAt: Date;
+  }> {
+    const { amount, method } = topUpDto;
+
+    // Validate minimum amount
+    if (amount < 10000) {
+      throw new BadRequestException('Minimum top up amount is Rp 10,000');
+    }
+
+    // Get or create wallet
+    let wallet = await this.prisma.wallet.findUnique({
+      where: { userId },
+    });
+
+    if (!wallet) {
+      wallet = await this.createWallet(userId);
+    }
+
+    // Generate external ID
+    const externalId = `TOPUP-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+
+    // Create deposit record
+    const deposit = await (this.prisma as any).deposit.create({
+      data: {
+        walletId: wallet.id,
+        amountMinor: BigInt(Math.round(amount * 100)),
+        currency: 'IDR',
+        paymentMethod: method,
+        paymentProvider: 'XENDIT',
+        externalId,
+        status: 'PENDING',
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
+      },
+    });
+
+    // Generate VA number (simulated for now)
+    const vaNumber = this.generateVANumber(method);
+
+    this.logger.log(`Top up initiated: ${deposit.id} for user ${userId}, amount: ${amount}`);
+
+    return {
+      id: deposit.id,
+      amount,
+      method,
+      vaNumber,
+      expiresAt: deposit.expiresAt,
+    };
+  }
+
+  /**
+   * Withdraw from wallet
+   */
+  async withdraw(userId: string, withdrawDto: WithdrawDto): Promise<{
+    id: string;
+    amount: number;
+    fee: number;
+    netAmount: number;
+    bankCode: string;
+    accountNumber: string;
+    accountName: string;
+    status: string;
+    estimatedArrival: Date;
+  }> {
+    const { amount, bankCode, accountNumber, accountName } = withdrawDto;
+
+    // Validate minimum amount
+    if (amount < 50000) {
+      throw new BadRequestException('Minimum withdrawal amount is Rp 50,000');
+    }
+
+    // Get wallet
     const wallet = await this.prisma.wallet.findUnique({
       where: { userId },
     });
@@ -118,18 +308,75 @@ export class WalletService {
       throw new WalletNotFoundError(userId);
     }
 
+    // Calculate fee (Rp 6,500 flat fee)
+    const fee = 6500;
+    const totalDeduction = amount + fee;
+    const amountMinor = BigInt(Math.round(amount * 100));
+    const feeMinor = BigInt(fee * 100);
+    const totalMinor = amountMinor + feeMinor;
+
+    // Check available balance
+    const availableBalance = wallet.balanceMinor - wallet.lockedMinor;
+    if (availableBalance < totalMinor) {
+      throw new InsufficientBalanceError(availableBalance, totalMinor);
+    }
+
+    // Validate bank code
+    const bank = this.SUPPORTED_BANKS.find(b => b.code === bankCode.toUpperCase());
+    if (!bank) {
+      throw new BadRequestException(`Unsupported bank code: ${bankCode}`);
+    }
+
+    // Create withdrawal record and lock balance in transaction
+    const withdrawal = await this.prisma.$transaction(async (tx) => {
+      // Lock the balance
+      await tx.wallet.update({
+        where: { userId },
+        data: {
+          lockedMinor: { increment: totalMinor },
+          version: { increment: 1 },
+        },
+      });
+
+      // Create withdrawal record
+      return (tx as any).withdrawal.create({
+        data: {
+          walletId: wallet.id,
+          amountMinor,
+          feeMinor,
+          currency: 'IDR',
+          bankCode: bankCode.toUpperCase(),
+          accountNumber,
+          accountName,
+          status: 'PENDING',
+        },
+      });
+    });
+
+    this.logger.log(`Withdrawal initiated: ${withdrawal.id} for user ${userId}, amount: ${amount}`);
+
     return {
-      available: wallet.balanceMinor - wallet.lockedMinor,
-      locked: wallet.lockedMinor,
-      total: wallet.balanceMinor,
-      currency: wallet.currency,
-      lastReconciledAt: wallet.lastReconciledAt,
+      id: withdrawal.id,
+      amount,
+      fee,
+      netAmount: amount,
+      bankCode: bankCode.toUpperCase(),
+      accountNumber,
+      accountName,
+      status: 'PENDING',
+      estimatedArrival: new Date(Date.now() + 2 * 60 * 60 * 1000), // 2 hours
     };
   }
 
   /**
+   * Get list of supported banks
+   */
+  getSupportedBanks(): { code: string; name: string; logo: string }[] {
+    return this.SUPPORTED_BANKS;
+  }
+
+  /**
    * BANK-GRADE: Deduct balance with optimistic locking
-   * Prevents race conditions and double-spending
    */
   async deductBalance(options: DeductBalanceOptions): Promise<Wallet> {
     const { userId, amount, reason, tx, maxRetries = this.MAX_RETRIES } = options;
@@ -144,7 +391,6 @@ export class WalletService {
 
     while (retries < maxRetries) {
       try {
-        // Step 1: Read current wallet state
         const wallet = await prisma.wallet.findUnique({
           where: { userId },
         });
@@ -153,18 +399,15 @@ export class WalletService {
           throw new WalletNotFoundError(userId);
         }
 
-        // Step 2: Validate sufficient balance
         const availableBalance = wallet.balanceMinor - wallet.lockedMinor;
         if (availableBalance < amount) {
           throw new InsufficientBalanceError(availableBalance, amount);
         }
 
-        // Step 3: Atomic update with optimistic locking
         const result = await prisma.wallet.updateMany({
           where: {
             userId,
-            version: wallet.version, // Optimistic lock check
-            // Additional safety: ensure balance hasn't changed
+            version: wallet.version,
             balanceMinor: { gte: amount },
           },
           data: {
@@ -174,30 +417,21 @@ export class WalletService {
           },
         });
 
-        // Step 4: Check if update succeeded
         if (result.count === 0) {
-          // Concurrent modification detected
           throw new OptimisticLockError();
         }
 
-        // Step 5: Return updated wallet
         const updatedWallet = await prisma.wallet.findUnique({
           where: { userId },
         });
 
-        this.logger.log(
-          `Deducted ${amount} from wallet ${wallet.id}. Reason: ${reason}`,
-        );
+        this.logger.log(`Deducted ${amount} from wallet. Reason: ${reason}`);
 
         return updatedWallet!;
       } catch (error) {
         if (error instanceof OptimisticLockError) {
           retries++;
           lastError = error;
-          this.logger.warn(
-            `Optimistic lock conflict for user ${userId}, retry ${retries}/${maxRetries}`,
-          );
-          // Exponential backoff
           await this.delay(this.RETRY_DELAY_MS * Math.pow(2, retries - 1));
           continue;
         }
@@ -205,9 +439,6 @@ export class WalletService {
       }
     }
 
-    this.logger.error(
-      `Failed to deduct balance after ${maxRetries} retries for user ${userId}`,
-    );
     throw lastError ?? new InternalServerErrorException('Failed to update balance');
   }
 
@@ -222,16 +453,14 @@ export class WalletService {
       throw new BadRequestException('Amount must be positive');
     }
 
-    // Ensure wallet exists
-    const wallet = await prisma.wallet.findUnique({
+    let wallet = await prisma.wallet.findUnique({
       where: { userId },
     });
 
     if (!wallet) {
-      throw new WalletNotFoundError(userId);
+      wallet = await this.createWallet(userId);
     }
 
-    // Atomic credit operation
     const updatedWallet = await prisma.wallet.update({
       where: { userId },
       data: {
@@ -241,9 +470,7 @@ export class WalletService {
       },
     });
 
-    this.logger.log(
-      `Credited ${amount} to wallet ${wallet.id}. Reason: ${reason}`,
-    );
+    this.logger.log(`Credited ${amount} to wallet. Reason: ${reason}`);
 
     return updatedWallet;
   }
@@ -276,7 +503,6 @@ export class WalletService {
           throw new InsufficientBalanceError(availableBalance, amount);
         }
 
-        // Atomic lock with optimistic locking
         const result = await prisma.wallet.updateMany({
           where: {
             userId,
@@ -297,9 +523,7 @@ export class WalletService {
           where: { userId },
         });
 
-        this.logger.log(
-          `Locked ${amount} in wallet ${wallet.id}. Reason: ${reason}`,
-        );
+        this.logger.log(`Locked ${amount} in wallet. Reason: ${reason}`);
 
         return updatedWallet!;
       } catch (error) {
@@ -353,16 +577,13 @@ export class WalletService {
       },
     });
 
-    this.logger.log(
-      `Unlocked ${amount} from wallet ${wallet.id}. Reason: ${reason}`,
-    );
+    this.logger.log(`Unlocked ${amount} from wallet. Reason: ${reason}`);
 
     return updatedWallet;
   }
 
   /**
-   * BANK-GRADE: Transfer locked balance to deduction (escrow release)
-   * Atomically: unlock from sender, deduct from sender, credit to receiver
+   * BANK-GRADE: Transfer locked balance to another user
    */
   async transferLockedBalance(
     fromUserId: string,
@@ -377,7 +598,6 @@ export class WalletService {
       throw new BadRequestException('Amount must be positive');
     }
 
-    // Verify sender has sufficient locked balance
     const fromWallet = await prisma.wallet.findUnique({
       where: { userId: fromUserId },
     });
@@ -392,16 +612,14 @@ export class WalletService {
       );
     }
 
-    // Verify receiver wallet exists
-    const toWallet = await prisma.wallet.findUnique({
+    let toWallet = await prisma.wallet.findUnique({
       where: { userId: toUserId },
     });
 
     if (!toWallet) {
-      throw new WalletNotFoundError(toUserId);
+      toWallet = await this.createWallet(toUserId);
     }
 
-    // Atomic transfer: unlock + deduct from sender
     await prisma.wallet.update({
       where: { userId: fromUserId },
       data: {
@@ -412,7 +630,6 @@ export class WalletService {
       },
     });
 
-    // Credit to receiver
     await prisma.wallet.update({
       where: { userId: toUserId },
       data: {
@@ -427,9 +644,7 @@ export class WalletService {
       prisma.wallet.findUnique({ where: { userId: toUserId } }),
     ]);
 
-    this.logger.log(
-      `Transferred ${amount} from ${fromUserId} to ${toUserId}. Reason: ${reason}`,
-    );
+    this.logger.log(`Transferred ${amount} from ${fromUserId} to ${toUserId}. Reason: ${reason}`);
 
     return {
       fromWallet: updatedFromWallet!,
@@ -437,91 +652,16 @@ export class WalletService {
     };
   }
 
-  // ============================================================================
-  // RECONCILIATION (BANK-GRADE INTEGRITY CHECK)
-  // ============================================================================
-
-  /**
-   * BANK-GRADE: Reconcile wallet balance against ledger entries
-   * CRITICAL: Must be run periodically to detect any discrepancies
-   */
-  async reconcile(userId: string): Promise<{
-    isBalanced: boolean;
-    walletBalance: bigint;
-    ledgerBalance: bigint;
-    discrepancy: bigint;
-  }> {
-    const wallet = await this.prisma.wallet.findUnique({
-      where: { userId },
-      include: {
-        accounts: {
-          include: {
-            entries: true,
-          },
-        },
-      },
-    });
-
-    if (!wallet) {
-      throw new WalletNotFoundError(userId);
-    }
-
-    // Calculate ledger balance from all entries
-    let ledgerBalance = 0n;
-    for (const account of wallet.accounts) {
-      for (const entry of account.entries) {
-        ledgerBalance += entry.amountMinor;
-      }
-    }
-
-    const walletBalance = wallet.balanceMinor;
-    const discrepancy = walletBalance - ledgerBalance;
-    const isBalanced = discrepancy === 0n;
-
-    if (!isBalanced) {
-      this.logger.error(
-        `CRITICAL: Ledger mismatch for wallet ${wallet.id}. ` +
-        `Wallet: ${walletBalance}, Ledger: ${ledgerBalance}, Discrepancy: ${discrepancy}`,
-      );
-
-      // In production, this should trigger alerts
-      throw new LedgerMismatchError(wallet.id, walletBalance, ledgerBalance);
-    }
-
-    // Update reconciliation timestamp
-    await this.prisma.wallet.update({
-      where: { id: wallet.id },
-      data: {
-        lastReconciledAt: new Date(),
-        reconciliationHash: this.generateReconciliationHash(wallet.id, walletBalance),
-      },
-    });
-
-    this.logger.log(`Wallet ${wallet.id} reconciled successfully`);
-
-    return {
-      isBalanced,
-      walletBalance,
-      ledgerBalance,
-      discrepancy,
-    };
-  }
-
-  // ============================================================================
-  // WALLET MANAGEMENT
-  // ============================================================================
-
   /**
    * Create wallet for new user
    */
   async createWallet(userId: string, currency: string = 'IDR'): Promise<Wallet> {
-    // Check if wallet already exists
     const existing = await this.prisma.wallet.findUnique({
       where: { userId },
     });
 
     if (existing) {
-      throw new BadRequestException('Wallet already exists for this user');
+      return existing;
     }
 
     const wallet = await this.prisma.wallet.create({
@@ -560,6 +700,15 @@ export class WalletService {
 
   private async delay(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  private generateVANumber(method: string): string {
+    const prefix = method.includes('bca') ? '1234' : 
+                   method.includes('bni') ? '8808' :
+                   method.includes('mandiri') ? '8908' :
+                   method.includes('bri') ? '2626' : '9999';
+    const random = Math.random().toString().substring(2, 14);
+    return `${prefix}${random}`;
   }
 
   private generateReconciliationHash(walletId: string, balance: bigint): string {

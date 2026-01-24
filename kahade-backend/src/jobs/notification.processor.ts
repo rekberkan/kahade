@@ -15,7 +15,7 @@ export class NotificationProcessor {
     const { userId, type, title, message } = job.data;
 
     try {
-      await this.notificationService.create(userId, { type, title, message });
+      await this.notificationService.createForUser(userId, type, title, message);
       this.logger.log(`Notification created for user: ${userId}`);
     } catch (error) {
       this.logger.error(`Failed to create notification: ${error.message}`);

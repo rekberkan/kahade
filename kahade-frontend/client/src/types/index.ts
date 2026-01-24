@@ -54,7 +54,6 @@ export interface Transaction {
   seller: User;
   feePaidBy: 'buyer' | 'seller' | 'split';
   terms?: string;
-  blockchainHash?: string;
   createdAt: string;
   acceptedAt?: string;
   paidAt?: string;

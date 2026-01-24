@@ -23,14 +23,14 @@ import {
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from 'sonner';
 import DashboardLayout from '@/components/layout/DashboardLayout';
+import { transactionApi } from '@/lib/api';
 
 const categories = [
   { value: 'ELECTRONICS', label: 'Elektronik' },
   { value: 'FASHION', label: 'Fashion' },
   { value: 'SERVICES', label: 'Jasa' },
-  { value: 'DIGITAL', label: 'Produk Digital' },
-  { value: 'AUTOMOTIVE', label: 'Otomotif' },
-  { value: 'PROPERTY', label: 'Properti' },
+  { value: 'DIGITAL_GOODS', label: 'Produk Digital' },
+  { value: 'PHYSICAL_GOODS', label: 'Barang Fisik' },
   { value: 'OTHER', label: 'Lainnya' },
 ];
 
@@ -56,11 +56,48 @@ export default function CreateTransaction() {
     terms: '',
   });
 
-  const platformFee = formData.amount ? Math.round(parseFloat(formData.amount) * 0.01) : 0;
-  const totalAmount = formData.amount ? parseFloat(formData.amount) + platformFee : 0;
+  const platformFee = formData.amount ? Math.round(parseFloat(formData.amount) * 0.025) : 0;
+  const totalAmount = formData.amount ? parseFloat(formData.amount) + (formData.feePaidBy === 'buyer' ? platformFee : 0) : 0;
+
+  const validateStep = (step: number): boolean => {
+    switch (step) {
+      case 1:
+        if (!formData.counterpartyEmail) {
+          toast.error('Email pihak lawan harus diisi');
+          return false;
+        }
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.counterpartyEmail)) {
+          toast.error('Format email tidak valid');
+          return false;
+        }
+        return true;
+      case 2:
+        if (!formData.title) {
+          toast.error('Judul transaksi harus diisi');
+          return false;
+        }
+        if (!formData.category) {
+          toast.error('Kategori harus dipilih');
+          return false;
+        }
+        if (!formData.description) {
+          toast.error('Deskripsi harus diisi');
+          return false;
+        }
+        return true;
+      case 3:
+        if (!formData.amount || parseFloat(formData.amount) < 10000) {
+          toast.error('Minimal harga transaksi Rp 10.000');
+          return false;
+        }
+        return true;
+      default:
+        return true;
+    }
+  };
 
   const handleNext = () => {
-    if (currentStep < 4) {
+    if (validateStep(currentStep) && currentStep < 4) {
       setCurrentStep(currentStep + 1);
     }
   };
@@ -74,18 +111,38 @@ export default function CreateTransaction() {
   const handleSubmit = async () => {
     setIsSubmitting(true);
     
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    toast.success('Transaksi berhasil dibuat!', {
-      description: 'Menunggu persetujuan dari pihak lawan.'
-    });
-    
-    setLocation('/dashboard/transactions');
+    try {
+      const response = await transactionApi.create({
+        counterpartyEmail: formData.counterpartyEmail,
+        role: formData.role as 'buyer' | 'seller',
+        title: formData.title,
+        description: formData.description,
+        category: formData.category,
+        amount: parseFloat(formData.amount),
+        feePaidBy: formData.feePaidBy as 'buyer' | 'seller' | 'split',
+        terms: formData.terms || undefined,
+      });
+
+      toast.success('Transaksi berhasil dibuat!', {
+        description: 'Undangan telah dikirim ke email pihak lawan.',
+      });
+      
+      // Redirect to transaction detail
+      const transactionId = response.data.id || response.data.transaction?.id;
+      if (transactionId) {
+        setLocation(`/dashboard/transactions/${transactionId}`);
+      } else {
+        setLocation('/dashboard/transactions');
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Gagal membuat transaksi');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const formatCurrency = (value: string) => {
-    const num = parseFloat(value);
+  const formatCurrency = (value: string | number) => {
+    const num = typeof value === 'string' ? parseFloat(value) : value;
     if (isNaN(num)) return 'Rp 0';
     return new Intl.NumberFormat('id-ID', {
       style: 'currency',
@@ -194,7 +251,7 @@ export default function CreateTransaction() {
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="title">Judul Transaksi</Label>
+                <Label htmlFor="title">Judul Transaksi *</Label>
                 <Input
                   id="title"
                   value={formData.title}
@@ -205,7 +262,7 @@ export default function CreateTransaction() {
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="category">Kategori</Label>
+                <Label htmlFor="category">Kategori *</Label>
                 <Select
                   value={formData.category}
                   onValueChange={(value) => setFormData({ ...formData, category: value })}
@@ -224,7 +281,7 @@ export default function CreateTransaction() {
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="description">Deskripsi</Label>
+                <Label htmlFor="description">Deskripsi *</Label>
                 <Textarea
                   id="description"
                   value={formData.description}
@@ -258,15 +315,17 @@ export default function CreateTransaction() {
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="amount">Harga Transaksi (IDR)</Label>
+                <Label htmlFor="amount">Harga Transaksi (IDR) *</Label>
                 <Input
                   id="amount"
                   type="number"
                   value={formData.amount}
                   onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
                   placeholder="0"
+                  min="10000"
                   className="bg-white/5 border-white/10 text-2xl font-semibold"
                 />
+                <p className="text-xs text-muted-foreground">Minimal Rp 10.000</p>
               </div>
               
               <div className="space-y-3">
@@ -307,12 +366,17 @@ export default function CreateTransaction() {
                     <span>{formatCurrency(formData.amount)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Biaya Platform (1%)</span>
-                    <span>{formatCurrency(platformFee.toString())}</span>
+                    <span className="text-muted-foreground">Biaya Platform (2.5%)</span>
+                    <span>{formatCurrency(platformFee)}</span>
                   </div>
                   <div className="border-t border-white/10 pt-2 flex justify-between font-semibold">
-                    <span>Total</span>
-                    <span className="text-accent">{formatCurrency(totalAmount.toString())}</span>
+                    <span>Total {formData.role === 'buyer' ? 'Pembayaran' : 'Diterima'}</span>
+                    <span className="text-accent">
+                      {formData.role === 'buyer' 
+                        ? formatCurrency(totalAmount) 
+                        : formatCurrency(parseFloat(formData.amount) - (formData.feePaidBy === 'seller' ? platformFee : 0))
+                      }
+                    </span>
                   </div>
                 </div>
               )}
@@ -334,13 +398,18 @@ export default function CreateTransaction() {
                 </div>
                 
                 <div className="p-4 rounded-xl bg-white/5">
+                  <div className="text-sm text-muted-foreground mb-1">Email {formData.role === 'buyer' ? 'Penjual' : 'Pembeli'}</div>
+                  <div className="font-semibold">{formData.counterpartyEmail}</div>
+                </div>
+                
+                <div className="p-4 rounded-xl bg-white/5">
                   <div className="text-sm text-muted-foreground mb-1">Judul</div>
-                  <div className="font-semibold">{formData.title || '-'}</div>
+                  <div className="font-semibold">{formData.title}</div>
                 </div>
                 
                 <div className="p-4 rounded-xl bg-white/5">
                   <div className="text-sm text-muted-foreground mb-1">Deskripsi</div>
-                  <div>{formData.description || '-'}</div>
+                  <div>{formData.description}</div>
                 </div>
                 
                 <div className="p-4 rounded-xl bg-white/5">
@@ -350,18 +419,34 @@ export default function CreateTransaction() {
                   </div>
                 </div>
                 
+                {formData.terms && (
+                  <div className="p-4 rounded-xl bg-white/5">
+                    <div className="text-sm text-muted-foreground mb-1">Syarat & Ketentuan</div>
+                    <div>{formData.terms}</div>
+                  </div>
+                )}
+                
                 <div className="p-4 rounded-xl bg-accent/10 border border-accent/20">
                   <div className="flex justify-between mb-2">
                     <span className="text-muted-foreground">Harga</span>
                     <span>{formatCurrency(formData.amount)}</span>
                   </div>
                   <div className="flex justify-between mb-2">
-                    <span className="text-muted-foreground">Biaya Platform</span>
-                    <span>{formatCurrency(platformFee.toString())}</span>
+                    <span className="text-muted-foreground">Biaya Platform (2.5%)</span>
+                    <span>{formatCurrency(platformFee)}</span>
+                  </div>
+                  <div className="flex justify-between mb-2">
+                    <span className="text-muted-foreground">Ditanggung oleh</span>
+                    <span>{formData.feePaidBy === 'buyer' ? 'Pembeli' : formData.feePaidBy === 'seller' ? 'Penjual' : 'Bagi Rata'}</span>
                   </div>
                   <div className="flex justify-between font-bold text-lg border-t border-accent/20 pt-2">
-                    <span>Total</span>
-                    <span className="text-accent">{formatCurrency(totalAmount.toString())}</span>
+                    <span>Total {formData.role === 'buyer' ? 'Pembayaran' : 'Diterima'}</span>
+                    <span className="text-accent">
+                      {formData.role === 'buyer' 
+                        ? formatCurrency(totalAmount) 
+                        : formatCurrency(parseFloat(formData.amount) - (formData.feePaidBy === 'seller' ? platformFee : 0))
+                      }
+                    </span>
                   </div>
                 </div>
               </div>
@@ -380,7 +465,7 @@ export default function CreateTransaction() {
           {/* Navigation Buttons */}
           <div className="flex justify-between mt-8 pt-6 border-t border-white/10">
             {currentStep > 1 ? (
-              <Button variant="outline" onClick={handleBack}>
+              <Button variant="outline" onClick={handleBack} disabled={isSubmitting}>
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Kembali
               </Button>

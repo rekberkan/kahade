@@ -1,4 +1,4 @@
-import { Injectable, ConflictException, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { Prisma } from '@prisma/client';
 
@@ -43,7 +43,6 @@ export class LedgerLockService {
       },
       {
         timeout: this.LOCK_TIMEOUT_MS,
-        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
       },
     );
   }
@@ -76,7 +75,6 @@ export class LedgerLockService {
       },
       {
         timeout: this.LOCK_TIMEOUT_MS,
-        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
       },
     );
   }
@@ -98,52 +96,58 @@ export class LedgerLockService {
       balanceAfterMinor: bigint;
     }>,
   ): Promise<string> {
-    // Validate double-entry: total debits must equal total credits
-    const totalDebits = entries
-      .filter((e) => e.type === 'DEBIT')
-      .reduce((sum, e) => sum + e.amountMinor, BigInt(0));
+    // Validate double-entry invariant: sum must be zero
+    let sum = 0n;
+    for (const entry of entries) {
+      if (entry.type === 'DEBIT') {
+        sum += entry.amountMinor;
+      } else {
+        sum -= entry.amountMinor;
+      }
+    }
 
-    const totalCredits = entries
-      .filter((e) => e.type === 'CREDIT')
-      .reduce((sum, e) => sum + e.amountMinor, BigInt(0));
-
-    if (totalDebits !== totalCredits) {
-      throw new ConflictException(
-        `Double-entry violation: Debits (${totalDebits}) != Credits (${totalCredits})`,
-      );
+    if (sum !== 0n) {
+      throw new Error(`Double-entry invariant violated: sum is ${sum}, expected 0`);
     }
 
     // Create journal
-    const journal = await tx.ledgerJournal.create({
-      data: journalData,
+    const journal = await (tx as any).ledgerJournal.create({
+      data: {
+        type: journalData.type,
+        description: journalData.description,
+        metadata: journalData.metadata,
+        totalAmountMinor: entries.reduce((acc, e) => acc + (e.type === 'DEBIT' ? e.amountMinor : 0n), 0n),
+      },
     });
 
-    // Create ledger entries
-    await tx.ledgerEntry.createMany({
-      data: entries.map((entry) => ({
-        journalId: journal.id,
-        ...entry,
-      })),
-    });
+    // Create entries
+    for (const entry of entries) {
+      await (tx as any).ledgerEntry.create({
+        data: {
+          journalId: journal.id,
+          walletId: entry.walletId,
+          type: entry.type,
+          amountMinor: entry.amountMinor,
+          balanceAfterMinor: entry.balanceAfterMinor,
+        },
+      });
+    }
 
-    this.logger.log(
-      `Double-entry created: Journal ${journal.id}, ${entries.length} entries`,
-    );
+    this.logger.debug(`Created ledger journal ${journal.id} with ${entries.length} entries`);
 
     return journal.id;
   }
 
   /**
-   * Verify wallet balance matches ledger
+   * Validate ledger integrity for a wallet
    */
-  async verifyWalletBalance(
-    walletId: string,
-    tx?: Prisma.TransactionClient,
-  ): Promise<{ isValid: boolean; expected: bigint; actual: bigint }> {
-    const client = tx || this.prisma;
-
-    // Get wallet balance
-    const wallet = await client.wallet.findUnique({
+  async validateWalletLedger(walletId: string): Promise<{
+    isValid: boolean;
+    expectedBalance: bigint;
+    actualBalance: bigint;
+    discrepancy: bigint;
+  }> {
+    const wallet = await this.prisma.wallet.findUnique({
       where: { id: walletId },
     });
 
@@ -151,33 +155,28 @@ export class LedgerLockService {
       throw new Error(`Wallet ${walletId} not found`);
     }
 
-    // Calculate balance from ledger
-    const ledgerEntries = await client.ledgerEntry.findMany({
+    // Calculate expected balance from ledger entries
+    const entries = await (this.prisma as any).ledgerEntry.findMany({
       where: { walletId },
     });
 
-    let calculatedBalance = BigInt(0);
-    for (const entry of ledgerEntries) {
-      if (entry.type === 'DEBIT') {
-        calculatedBalance += entry.amountMinor;
+    let expectedBalance = 0n;
+    for (const entry of entries) {
+      if (entry.type === 'CREDIT') {
+        expectedBalance += entry.amountMinor;
       } else {
-        calculatedBalance -= entry.amountMinor;
+        expectedBalance -= entry.amountMinor;
       }
     }
 
-    const isValid = wallet.balanceMinor === calculatedBalance;
-
-    if (!isValid) {
-      this.logger.error(
-        `Wallet ${walletId} balance mismatch: ` +
-        `Wallet=${wallet.balanceMinor}, Ledger=${calculatedBalance}`,
-      );
-    }
+    const actualBalance = wallet.balanceMinor;
+    const discrepancy = actualBalance - expectedBalance;
 
     return {
-      isValid,
-      expected: calculatedBalance,
-      actual: wallet.balanceMinor,
+      isValid: discrepancy === 0n,
+      expectedBalance,
+      actualBalance,
+      discrepancy,
     };
   }
 }

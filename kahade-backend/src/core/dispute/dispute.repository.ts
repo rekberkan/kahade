@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '@infrastructure/database/prisma.service';
-import { Dispute, DisputeStatus } from '@prisma/client';
+import { Dispute, DisputeStatus } from '@common/shims/prisma-types.shim';
 
 // ============================================================================
 // BANK-GRADE DISPUTE REPOSITORY

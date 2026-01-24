@@ -7,7 +7,7 @@ import { Link } from 'wouter';
 import { motion } from 'framer-motion';
 import { 
   UserPlus, FileText, Wallet, Send, CheckCircle2, 
-  ArrowRight, Shield, Clock, HelpCircle, ChevronDown
+  ArrowRight, Shield, Clock, HelpCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -49,7 +49,7 @@ const steps = [
       'Pilih metode pembayaran (Transfer, E-Wallet, VA)',
       'Dana masuk ke rekening escrow Kahade',
       'Penjual mendapat notifikasi dana sudah masuk',
-      'Transaksi tercatat di blockchain'
+      'Status transaksi terupdate secara real-time'
     ]
   },
   {
@@ -71,7 +71,7 @@ const steps = [
       'Pembeli cek dan konfirmasi barang/jasa',
       'Dana otomatis dilepaskan ke penjual',
       'Kedua pihak dapat memberikan rating',
-      'Transaksi selesai dan tercatat permanen'
+      'Transaksi selesai dan tercatat'
     ]
   }
 ];
@@ -87,7 +87,7 @@ const faqs = [
   },
   {
     question: 'Apakah dana saya aman?',
-    answer: 'Ya, dana Anda sangat aman. Dana escrow disimpan di rekening terpisah yang diawasi dan tidak dapat diakses oleh siapapun kecuali melalui proses yang telah ditentukan. Semua transaksi juga tercatat di blockchain untuk transparansi.'
+    answer: 'Ya, dana Anda sangat aman. Dana escrow disimpan di rekening terpisah yang diawasi dan tidak dapat diakses oleh siapapun kecuali melalui proses yang telah ditentukan. Semua transaksi tercatat untuk transparansi penuh.'
   },
   {
     question: 'Berapa lama proses pencairan dana?',

@@ -14,6 +14,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 30000,
 });
 
 // Request interceptor to add auth token
@@ -35,7 +36,11 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       localStorage.removeItem('kahade_token');
       localStorage.removeItem('kahade_user');
-      window.location.href = '/login';
+      // Only redirect if not already on auth pages
+      if (!window.location.pathname.includes('/login') && 
+          !window.location.pathname.includes('/register')) {
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }
@@ -58,25 +63,63 @@ export const authApi = {
   verifyEmail: (token: string) =>
     api.post('/auth/verify-email', { token }),
   
+  resendVerification: () =>
+    api.post('/auth/resend-verification'),
+  
   me: () => api.get('/auth/me'),
   
   logout: () => api.post('/auth/logout'),
+  
+  refreshToken: () => api.post('/auth/refresh'),
+  
+  // 2FA
+  enable2FA: () => api.post('/auth/2fa/enable'),
+  
+  disable2FA: () => api.post('/auth/2fa/disable'),
+  
+  verify2FA: (code: string) => api.post('/auth/2fa/verify', { code }),
+  
+  // Sessions
+  getSessions: () => api.get('/auth/sessions'),
+  
+  revokeSession: (sessionId: string) => 
+    api.delete(`/auth/sessions/${sessionId}`),
+  
+  revokeAllSessions: () => api.delete('/auth/sessions'),
 };
 
 // User API
 export const userApi = {
-  getProfile: () => api.get('/user/profile'),
+  getProfile: () => api.get('/users/me'),
   
   updateProfile: (data: { username?: string; phone?: string }) =>
-    api.patch('/user/profile', data),
+    api.patch('/users/me', data),
   
   changePassword: (data: { currentPassword: string; newPassword: string }) =>
-    api.post('/user/change-password', data),
+    api.post('/users/me/change-password', data),
   
-  uploadKYC: (data: FormData) =>
-    api.post('/user/kyc', data, {
+  uploadAvatar: (data: FormData) =>
+    api.post('/users/me/avatar', data, {
       headers: { 'Content-Type': 'multipart/form-data' },
     }),
+  
+  uploadKYC: (data: FormData) =>
+    api.post('/users/me/kyc', data, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
+  
+  getStats: () => api.get('/users/me/stats'),
+  
+  updateNotificationSettings: (data: {
+    email?: boolean;
+    push?: boolean;
+    transaction?: boolean;
+    marketing?: boolean;
+  }) => api.patch('/users/me/notification-settings', data),
+  
+  getPublicProfile: (userId: string) => api.get(`/users/${userId}`),
+  
+  getRatings: (userId: string) => api.get(`/users/${userId}/ratings`),
 };
 
 // Transaction API
@@ -105,16 +148,23 @@ export const transactionApi = {
   pay: (id: string) => api.post(`/transactions/${id}/pay`),
   
   confirmDelivery: (id: string) =>
-    api.post(`/transactions/${id}/confirm-delivery`),
+    api.post(`/transactions/${id}/deliver`),
   
   confirmReceipt: (id: string) =>
-    api.post(`/transactions/${id}/confirm-receipt`),
+    api.post(`/transactions/${id}/complete`),
   
   dispute: (id: string, data: { reason: string; description: string }) =>
     api.post(`/transactions/${id}/dispute`, data),
   
   cancel: (id: string, reason?: string) =>
     api.post(`/transactions/${id}/cancel`, { reason }),
+  
+  getTimeline: (id: string) => api.get(`/transactions/${id}/timeline`),
+  
+  addMessage: (id: string, message: string) =>
+    api.post(`/transactions/${id}/messages`, { message }),
+  
+  getMessages: (id: string) => api.get(`/transactions/${id}/messages`),
 };
 
 // Wallet API
@@ -131,12 +181,18 @@ export const walletApi = {
     api.post('/wallet/withdraw', data),
   
   getBanks: () => api.get('/wallet/banks'),
+  
+  getWithdrawals: () => api.get('/wallet/withdrawals'),
+  
+  cancelWithdrawal: (id: string) => api.post(`/wallet/withdrawals/${id}/cancel`),
 };
 
 // Notification API
 export const notificationApi = {
   list: (params?: { read?: boolean; page?: number; limit?: number }) =>
     api.get('/notifications', { params }),
+  
+  getUnreadCount: () => api.get('/notifications/unread-count'),
   
   markRead: (id: string) => api.patch(`/notifications/${id}/read`),
   
@@ -151,6 +207,22 @@ export const ratingApi = {
     api.post(`/transactions/${transactionId}/rating`, data),
   
   getUserRatings: (userId: string) => api.get(`/users/${userId}/ratings`),
+};
+
+// Dispute API
+export const disputeApi = {
+  list: (params?: { status?: string; page?: number; limit?: number }) =>
+    api.get('/disputes', { params }),
+  
+  get: (id: string) => api.get(`/disputes/${id}`),
+  
+  addEvidence: (id: string, data: FormData) =>
+    api.post(`/disputes/${id}/evidence`, data, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
+  
+  addMessage: (id: string, message: string) =>
+    api.post(`/disputes/${id}/messages`, { message }),
 };
 
 // Admin API
@@ -194,7 +266,7 @@ export const adminApi = {
   
   startReview: (id: string) => api.post(`/admin/disputes/${id}/review`),
   
-  resolveDispute: (id: string, data: { winner: 'buyer' | 'seller' | 'split'; resolution: string }) =>
+  resolveDispute: (id: string, data: { winner: 'buyer' | 'seller' | 'split'; resolution: string; buyerAmount?: number; sellerAmount?: number }) =>
     api.post(`/admin/disputes/${id}/resolve`, data),
   
   // Audit Logs
@@ -215,6 +287,16 @@ export const adminApi = {
   
   rejectWithdrawal: (id: string, reason: string) =>
     api.post(`/admin/withdrawals/${id}/reject`, { reason }),
+  
+  // Reports
+  getRevenueReport: (params?: { startDate?: string; endDate?: string }) =>
+    api.get('/admin/reports/revenue', { params }),
+  
+  getTransactionReport: (params?: { startDate?: string; endDate?: string }) =>
+    api.get('/admin/reports/transactions', { params }),
+  
+  getUserReport: (params?: { startDate?: string; endDate?: string }) =>
+    api.get('/admin/reports/users', { params }),
 };
 
 export default api;

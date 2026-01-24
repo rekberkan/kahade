@@ -27,20 +27,24 @@ export default function Login() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (!formData.email || !formData.password) {
+      toast.error('Mohon isi semua field');
+      return;
+    }
+
     try {
-      await login(formData.email, formData.password);
+      const user = await login(formData.email, formData.password);
       toast.success('Login berhasil!');
       
       // Redirect based on user role
-      if (formData.email.includes('admin')) {
+      if (user?.role === 'ADMIN') {
         setLocation('/admin');
       } else {
         setLocation('/dashboard');
       }
-    } catch (error) {
-      toast.error('Login gagal', {
-        description: 'Email atau password salah.'
-      });
+    } catch (error: any) {
+      const message = error.response?.data?.message || 'Email atau password salah.';
+      toast.error('Login gagal', { description: message });
     }
   };
 
@@ -160,16 +164,14 @@ export default function Login() {
           transition={{ delay: 0.2 }}
           className="relative z-10 text-center"
         >
-          <img 
-            src="/images/security-shield.png" 
-            alt="Security" 
-            className="w-64 h-64 mx-auto mb-8"
-          />
+          <div className="w-64 h-64 mx-auto mb-8 rounded-full bg-gradient-to-br from-accent/20 to-primary/20 flex items-center justify-center">
+            <Shield className="w-32 h-32 text-accent" />
+          </div>
           <h2 className="text-2xl font-display font-bold mb-4">
             Transaksi Aman dengan Kahade
           </h2>
           <p className="text-muted-foreground max-w-sm mx-auto">
-            Platform escrow terpercaya dengan teknologi blockchain untuk keamanan maksimal.
+            Platform rekber/escrow terpercaya untuk keamanan transaksi online Anda.
           </p>
         </motion.div>
       </div>

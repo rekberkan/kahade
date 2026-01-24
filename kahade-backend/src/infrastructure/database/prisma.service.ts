@@ -9,10 +9,6 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     return (this as any).order;
   }
 
-  get order() {
-    return (this as any).order;
-  }
-
   constructor() {
     super({
       log: [
@@ -44,10 +40,18 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       throw new Error('Cannot clean database in production');
     }
 
-    const models = Reflect.ownKeys(this).filter(
-      (key) => key[0] !== '_' && typeof key === 'string',
+    const models = Object.keys(this).filter(
+      (key) => !key.startsWith('_') && !key.startsWith('$'),
     );
 
-    return Promise.all(models.map((modelKey) => this[modelKey].deleteMany()));
+    return Promise.all(
+      models.map((modelKey) => {
+        const model = (this as any)[modelKey];
+        if (model && typeof model.deleteMany === 'function') {
+          return model.deleteMany();
+        }
+        return Promise.resolve();
+      }),
+    );
   }
 }

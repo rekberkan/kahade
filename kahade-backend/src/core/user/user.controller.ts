@@ -1,5 +1,6 @@
-import { Controller, Get, Put, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { Controller, Get, Post, Patch, Body, Param, Query, UseGuards, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery, ApiConsumes } from '@nestjs/swagger';
 import { UserService } from './user.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
@@ -7,8 +8,8 @@ import { RolesGuard } from '@common/guards/roles.guard';
 import { CurrentUser } from '@common/decorators/current-user.decorator';
 import { Roles } from '@common/decorators/roles.decorator';
 
-@ApiTags('users')
-@Controller('users')
+@ApiTags('user')
+@Controller('user')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth('JWT-auth')
 export class UserController {
@@ -22,12 +23,54 @@ export class UserController {
     return this.userService.sanitizeUser(user);
   }
 
-  @Put('profile')
+  @Patch('profile')
   @ApiOperation({ summary: 'Update current user profile' })
   @ApiResponse({ status: 200, description: 'Profile updated successfully' })
-  async updateProfile(@CurrentUser('id') userId: string, @Body() updateUserDto: UpdateUserDto) {
+  async updateProfile(
+    @CurrentUser('id') userId: string,
+    @Body() updateUserDto: UpdateUserDto,
+  ) {
     return this.userService.update(userId, updateUserDto);
   }
+
+  @Post('change-password')
+  @ApiOperation({ summary: 'Change user password' })
+  @ApiResponse({ status: 200, description: 'Password changed successfully' })
+  async changePassword(
+    @CurrentUser('id') userId: string,
+    @Body() dto: { currentPassword: string; newPassword: string },
+  ) {
+    return this.userService.changePassword(userId, dto.currentPassword, dto.newPassword);
+  }
+
+  @Post('kyc')
+  @ApiOperation({ summary: 'Upload KYC documents' })
+  @ApiConsumes('multipart/form-data')
+  @ApiResponse({ status: 201, description: 'KYC documents uploaded' })
+  @UseInterceptors(FileInterceptor('document'))
+  async uploadKYC(
+    @CurrentUser('id') userId: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Body() dto: { documentType: string },
+  ) {
+    return this.userService.uploadKYCDocument(userId, file, dto.documentType);
+  }
+
+  @Get(':id/ratings')
+  @ApiOperation({ summary: 'Get user ratings' })
+  @ApiResponse({ status: 200, description: 'Returns user ratings' })
+  async getUserRatings(@Param('id') userId: string) {
+    return this.userService.getUserRatings(userId);
+  }
+}
+
+// Separate controller for /users routes
+@ApiTags('users')
+@Controller('users')
+@UseGuards(JwtAuthGuard)
+@ApiBearerAuth('JWT-auth')
+export class UsersController {
+  constructor(private readonly userService: UserService) {}
 
   @Get(':id')
   @ApiOperation({ summary: 'Get user by ID' })
@@ -38,24 +81,10 @@ export class UserController {
     return this.userService.sanitizeUser(user);
   }
 
-  @Get()
-  @UseGuards(RolesGuard)
-  @Roles('ADMIN')
-  @ApiOperation({ summary: 'Get all users (Admin only)' })
-  @ApiQuery({ name: 'page', required: false, type: Number })
-  @ApiQuery({ name: 'limit', required: false, type: Number })
-  @ApiResponse({ status: 200, description: 'Returns paginated users' })
-  async findAll(@Query('page') page: number = 1, @Query('limit') limit: number = 10) {
-    return this.userService.findAll({ page, limit });
-  }
-
-  @Delete(':id')
-  @UseGuards(RolesGuard)
-  @Roles('ADMIN')
-  @ApiOperation({ summary: 'Delete user (Admin only)' })
-  @ApiResponse({ status: 200, description: 'User deleted successfully' })
-  async delete(@Param('id') id: string) {
-    await this.userService.delete(id);
-    return { message: 'User deleted successfully' };
+  @Get(':id/ratings')
+  @ApiOperation({ summary: 'Get user ratings' })
+  @ApiResponse({ status: 200, description: 'Returns user ratings' })
+  async getUserRatings(@Param('id') userId: string) {
+    return this.userService.getUserRatings(userId);
   }
 }

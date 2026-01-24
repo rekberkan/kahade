@@ -2,7 +2,7 @@ import { Injectable, NotFoundException, BadRequestException, ForbiddenException,
 import { DisputeRepository } from './dispute.repository';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { PaginationUtil, PaginationParams } from '@common/utils/pagination.util';
-import { Dispute, DisputeStatus, DisputeDecision, OrderStatus } from '@prisma/client';
+import { Dispute, DisputeStatus, DisputeDecision, OrderStatus } from '@common/shims/prisma-types.shim';
 
 // ============================================================================
 // BANK-GRADE DISPUTE SERVICE

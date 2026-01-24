@@ -208,7 +208,23 @@ export class MfaGuard implements CanActivate {
     const buffer = Buffer.alloc(8);
     buffer.writeBigInt64BE(BigInt(counter));
     
-    const hmac = crypto.createHmac('sha1', Buffer.from(secret, 'base32'));
+    // Decode base32 secret manually
+    const base32Chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+    const secretUpper = secret.toUpperCase().replace(/=+$/, '');
+    let bits = '';
+    for (const char of secretUpper) {
+      const val = base32Chars.indexOf(char);
+      if (val >= 0) {
+        bits += val.toString(2).padStart(5, '0');
+      }
+    }
+    const bytes: number[] = [];
+    for (let i = 0; i + 8 <= bits.length; i += 8) {
+      bytes.push(parseInt(bits.substr(i, 8), 2));
+    }
+    const secretBuffer = Buffer.from(bytes);
+    
+    const hmac = crypto.createHmac('sha1', secretBuffer);
     hmac.update(buffer);
     const hash = hmac.digest();
     

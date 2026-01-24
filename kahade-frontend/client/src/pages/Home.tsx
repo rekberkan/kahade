@@ -1,7 +1,7 @@
 /*
  * KAHADE HOME PAGE - Landing Page
  * 
- * Design: Glassmorphic Tech with blockchain transparency theme
+ * Design: Glassmorphic Tech with secure escrow theme
  * Sections: Hero, Features, How It Works, Stats, Testimonials, CTA
  */
 
@@ -10,7 +10,7 @@ import { motion } from 'framer-motion';
 import { 
   Shield, Lock, Zap, Users, ArrowRight, CheckCircle2, 
   Wallet, FileCheck, Clock, Star, ChevronRight, Globe,
-  Blocks, Eye, BadgeCheck
+  Eye, BadgeCheck, Headphones, CreditCard
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Navbar from '@/components/layout/Navbar';
@@ -38,9 +38,9 @@ const features = [
     color: 'from-cyan-500 to-blue-500'
   },
   {
-    icon: Blocks,
-    title: 'Integrasi Blockchain',
-    description: 'Setiap transaksi tercatat di blockchain untuk transparansi maksimal.',
+    icon: CreditCard,
+    title: 'Multi Payment',
+    description: 'Berbagai metode pembayaran: transfer bank, e-wallet, dan virtual account.',
     color: 'from-indigo-500 to-purple-500'
   },
   {
@@ -119,7 +119,7 @@ const testimonials = [
   {
     name: 'Ahmad Rahman',
     role: 'Kolektor',
-    content: 'Membeli barang koleksi mahal jadi lebih aman dengan escrow Kahade. Blockchain-nya bikin tenang.',
+    content: 'Membeli barang koleksi mahal jadi lebih aman dengan escrow Kahade. Prosesnya mudah dan cepat.',
     rating: 5
   }
 ];
@@ -131,14 +131,9 @@ export default function Home() {
       
       {/* Hero Section */}
       <section className="relative min-h-screen flex items-center pt-20 overflow-hidden">
-        {/* Background Image */}
+        {/* Background */}
         <div className="absolute inset-0 z-0">
-          <img 
-            src="/images/hero-bg.png" 
-            alt="" 
-            className="w-full h-full object-cover opacity-40"
-          />
-          <div className="absolute inset-0 bg-gradient-to-b from-background/50 via-background/80 to-background" />
+          <div className="absolute inset-0 bg-gradient-to-b from-accent/5 via-background to-background" />
         </div>
         
         {/* Floating Elements */}
@@ -154,8 +149,8 @@ export default function Home() {
               className="text-center lg:text-left"
             >
               <motion.div variants={fadeInUp} className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-accent/10 border border-accent/20 mb-6">
-                <Blocks className="w-4 h-4 text-accent" />
-                <span className="text-sm text-accent font-medium">Powered by Blockchain</span>
+                <Shield className="w-4 h-4 text-accent" />
+                <span className="text-sm text-accent font-medium">Platform Rekber Terpercaya</span>
               </motion.div>
               
               <motion.h1 
@@ -171,8 +166,8 @@ export default function Home() {
                 variants={fadeInUp}
                 className="text-lg text-muted-foreground mb-8 max-w-xl mx-auto lg:mx-0"
               >
-                Lindungi setiap transaksi Anda dengan sistem escrow yang didukung teknologi blockchain. 
-                Aman, transparan, dan terpercaya.
+                Lindungi setiap transaksi Anda dengan sistem escrow yang aman dan terpercaya. 
+                Perlindungan untuk pembeli dan penjual.
               </motion.p>
               
               <motion.div variants={fadeInUp} className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
@@ -190,7 +185,7 @@ export default function Home() {
               </motion.div>
               
               {/* Trust Badges */}
-              <motion.div variants={fadeInUp} className="mt-10 flex items-center gap-6 justify-center lg:justify-start">
+              <motion.div variants={fadeInUp} className="mt-10 flex items-center gap-6 justify-center lg:justify-start flex-wrap">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <CheckCircle2 className="w-5 h-5 text-emerald-500" />
                   <span>Terdaftar OJK</span>
@@ -206,7 +201,7 @@ export default function Home() {
               </motion.div>
             </motion.div>
             
-            {/* Hero Image */}
+            {/* Hero Visual */}
             <motion.div 
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -214,11 +209,9 @@ export default function Home() {
               className="hidden lg:block"
             >
               <div className="relative">
-                <img 
-                  src="/images/escrow-illustration.png" 
-                  alt="Secure Escrow" 
-                  className="w-full max-w-lg mx-auto drop-shadow-2xl"
-                />
+                <div className="w-full max-w-lg mx-auto aspect-square rounded-3xl bg-gradient-to-br from-accent/20 to-primary/20 flex items-center justify-center">
+                  <Shield className="w-48 h-48 text-accent" />
+                </div>
                 <div className="absolute -inset-4 bg-accent/10 blur-3xl rounded-full -z-10" />
               </div>
             </motion.div>
@@ -349,7 +342,7 @@ export default function Home() {
         </div>
       </section>
       
-      {/* Blockchain Feature Section */}
+      {/* Security Feature Section */}
       <section className="py-24">
         <div className="container">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
@@ -358,11 +351,9 @@ export default function Home() {
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
             >
-              <img 
-                src="/images/blockchain-feature.png" 
-                alt="Blockchain Technology" 
-                className="w-full max-w-md mx-auto"
-              />
+              <div className="w-full max-w-md mx-auto aspect-square rounded-3xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 flex items-center justify-center">
+                <Lock className="w-32 h-32 text-emerald-500" />
+              </div>
             </motion.div>
             
             <motion.div
@@ -372,25 +363,25 @@ export default function Home() {
             >
               <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 mb-6">
                 <Globe className="w-4 h-4 text-primary" />
-                <span className="text-sm text-primary font-medium">Teknologi Terdepan</span>
+                <span className="text-sm text-primary font-medium">Keamanan Terdepan</span>
               </div>
               
               <h2 className="text-3xl md:text-4xl font-display font-bold mb-6">
-                Transparansi dengan{' '}
-                <span className="gradient-text">Blockchain</span>
+                Keamanan{' '}
+                <span className="gradient-text">Tingkat Enterprise</span>
               </h2>
               
               <p className="text-muted-foreground mb-6">
-                Setiap transaksi di Kahade tercatat secara permanen di blockchain, 
-                memberikan bukti yang tidak dapat diubah dan dapat diverifikasi oleh siapa saja.
+                Setiap transaksi di Kahade dilindungi dengan sistem keamanan berlapis, 
+                memberikan perlindungan maksimal untuk dana dan data Anda.
               </p>
               
               <ul className="space-y-4 mb-8">
                 {[
-                  'Catatan transaksi yang tidak dapat diubah',
-                  'Verifikasi independen oleh semua pihak',
-                  'Audit trail yang lengkap dan transparan',
-                  'Keamanan kriptografi tingkat tinggi'
+                  'Enkripsi end-to-end untuk semua data',
+                  'Autentikasi dua faktor (2FA)',
+                  'Rekening escrow terpisah dan diawasi',
+                  'Audit keamanan berkala'
                 ].map((item, index) => (
                   <li key={index} className="flex items-center gap-3">
                     <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
@@ -400,8 +391,8 @@ export default function Home() {
               </ul>
               
               <Link href="/about">
-                <Button className="btn-primary group">
-                  Pelajari Teknologi Kami
+                <Button className="btn-accent group">
+                  Pelajari Keamanan Kami
                   <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
                 </Button>
               </Link>
@@ -437,18 +428,18 @@ export default function Home() {
                 transition={{ delay: index * 0.1 }}
                 className="glass-card p-6"
               >
-                <div className="flex gap-1 mb-4">
+                <div className="flex items-center gap-1 mb-4">
                   {[...Array(testimonial.rating)].map((_, i) => (
-                    <Star key={i} className="w-5 h-5 fill-amber-400 text-amber-400" />
+                    <Star key={i} className="w-5 h-5 text-amber-400 fill-amber-400" />
                   ))}
                 </div>
-                <p className="text-foreground mb-6 italic">"{testimonial.content}"</p>
+                <p className="text-foreground mb-6">"{testimonial.content}"</p>
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-accent to-primary flex items-center justify-center text-white font-semibold">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-accent to-primary flex items-center justify-center text-white font-bold">
                     {testimonial.name.charAt(0)}
                   </div>
                   <div>
-                    <div className="font-semibold">{testimonial.name}</div>
+                    <div className="font-medium">{testimonial.name}</div>
                     <div className="text-sm text-muted-foreground">{testimonial.role}</div>
                   </div>
                 </div>
@@ -458,47 +449,74 @@ export default function Home() {
         </div>
       </section>
       
-      {/* CTA Section */}
+      {/* Support Section */}
       <section className="py-24">
         <div className="container">
-          <motion.div
+          <div className="glass-card p-8 md:p-12">
+            <div className="grid md:grid-cols-2 gap-8 items-center">
+              <div>
+                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-accent/10 border border-accent/20 mb-6">
+                  <Headphones className="w-4 h-4 text-accent" />
+                  <span className="text-sm text-accent font-medium">Dukungan 24/7</span>
+                </div>
+                <h2 className="text-3xl md:text-4xl font-display font-bold mb-4">
+                  Butuh Bantuan?
+                </h2>
+                <p className="text-muted-foreground mb-6">
+                  Tim support kami siap membantu Anda 24 jam sehari, 7 hari seminggu. 
+                  Hubungi kami melalui live chat, email, atau telepon.
+                </p>
+                <div className="flex flex-wrap gap-4">
+                  <Link href="/contact">
+                    <Button className="btn-accent">
+                      Hubungi Kami
+                    </Button>
+                  </Link>
+                  <Link href="/faq">
+                    <Button variant="outline">
+                      Lihat FAQ
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+              <div className="hidden md:flex justify-center">
+                <div className="w-48 h-48 rounded-full bg-gradient-to-br from-accent/20 to-primary/20 flex items-center justify-center">
+                  <Headphones className="w-24 h-24 text-accent" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+      
+      {/* CTA Section */}
+      <section className="py-24 bg-gradient-to-b from-white/[0.02] to-transparent">
+        <div className="container">
+          <motion.div 
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="relative glass-card p-12 md:p-16 text-center overflow-hidden"
+            className="text-center max-w-3xl mx-auto"
           >
-            {/* Background decoration */}
-            <div className="absolute top-0 left-1/4 w-64 h-64 bg-accent/20 rounded-full blur-3xl" />
-            <div className="absolute bottom-0 right-1/4 w-64 h-64 bg-primary/20 rounded-full blur-3xl" />
-            
-            <div className="relative z-10">
-              <img 
-                src="/images/security-shield.png" 
-                alt="Security" 
-                className="w-24 h-24 mx-auto mb-6"
-              />
-              
-              <h2 className="text-3xl md:text-4xl font-display font-bold mb-4">
-                Siap Bertransaksi dengan <span className="gradient-text">Aman</span>?
-              </h2>
-              
-              <p className="text-muted-foreground max-w-xl mx-auto mb-8">
-                Bergabung dengan ribuan pengguna yang sudah mempercayakan transaksi mereka kepada Kahade.
-              </p>
-              
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Link href="/register">
-                  <Button className="btn-accent text-base px-8 py-4 h-auto group">
-                    Daftar Sekarang - Gratis
-                    <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                  </Button>
-                </Link>
-                <Link href="/contact">
-                  <Button className="btn-secondary text-base px-8 py-4 h-auto">
-                    Hubungi Sales
-                  </Button>
-                </Link>
-              </div>
+            <h2 className="text-3xl md:text-4xl font-display font-bold mb-6">
+              Siap Bertransaksi dengan <span className="gradient-text">Aman</span>?
+            </h2>
+            <p className="text-muted-foreground mb-8">
+              Bergabung dengan ribuan pengguna yang telah mempercayakan transaksi mereka kepada Kahade. 
+              Daftar gratis dan mulai bertransaksi dengan aman hari ini.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Link href="/register">
+                <Button className="btn-accent text-base px-8 py-4 h-auto group">
+                  Daftar Gratis Sekarang
+                  <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                </Button>
+              </Link>
+              <Link href="/contact">
+                <Button className="btn-secondary text-base px-8 py-4 h-auto">
+                  Hubungi Sales
+                </Button>
+              </Link>
             </div>
           </motion.div>
         </div>

@@ -6,7 +6,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '@infrastructure/database/prisma.service';
-import { Prisma, Withdrawal, WithdrawalStatus, KYCStatus } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import { Withdrawal, WithdrawalStatus, KYCStatus } from '@common/shims/prisma-types.shim';
 import { ConfigService } from '@nestjs/config';
 import { WalletService } from '../wallet/wallet.service';
 import { LedgerService } from '../ledger/ledger.service';

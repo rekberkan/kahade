@@ -102,7 +102,7 @@ export class IdempotencyInterceptor implements NestInterceptor {
         await this.setIdempotencyRecord(cacheKey, {
           status: 'completed',
           response,
-          createdAt: existingRecord?.createdAt ?? Date.now(),
+          createdAt: (existingRecord as IdempotencyRecord | null)?.createdAt ?? Date.now(),
           completedAt: Date.now(),
           requestHash,
         });
@@ -115,7 +115,7 @@ export class IdempotencyInterceptor implements NestInterceptor {
           await this.setIdempotencyRecord(cacheKey, {
             status: 'failed',
             error: error.message,
-            createdAt: existingRecord?.createdAt ?? Date.now(),
+            createdAt: (existingRecord as IdempotencyRecord | null)?.createdAt ?? Date.now(),
             completedAt: Date.now(),
             requestHash,
           });

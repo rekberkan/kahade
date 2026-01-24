@@ -24,7 +24,6 @@ export enum OrderCategory {
 export enum Currency {
   IDR = 'IDR',
   USD = 'USD',
-  USDT = 'USDT',
 }
 
 export enum FeePayer {
@@ -77,10 +76,36 @@ export interface IOrderResponse {
   updatedAt: Date;
 }
 
-export interface ITransactionResponse extends IOrderResponse {
-  buyer?: any;
-  seller?: any;
-  blockchainTxHash?: string;
+export interface ITransactionResponse {
+  id: string;
+  orderNumber: string;
+  initiatorId: string;
+  counterpartyId?: string | null;
+  initiatorRole: string;
+  title: string;
+  description: string;
+  category: string;
+  amount: number;
+  platformFee: number;
+  feePayer: string;
+  status: string;
+  terms?: string | null;
+  inviteToken?: string;
+  inviteExpiresAt?: Date;
+  acceptedAt?: Date | null;
+  paidAt?: Date | null;
+  deliveredAt?: Date | null;
+  completedAt?: Date | null;
+  cancelledAt?: Date | null;
+  disputedAt?: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  initiator?: any;
+  counterparty?: any;
+  escrowHold?: any;
+  deliveryProof?: any;
+  dispute?: any;
+  ratings?: any[];
 }
 
 export interface ICreateTransaction {
@@ -96,7 +121,6 @@ export interface ICreateTransaction {
 
 export interface IUpdateTransaction {
   status?: OrderStatus;
-  blockchainTxHash?: string;
   paidAt?: Date;
   completedAt?: Date;
   cancelledAt?: Date;

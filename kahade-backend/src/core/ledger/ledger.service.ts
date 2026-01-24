@@ -5,7 +5,8 @@ import {
   InternalServerErrorException,
 } from '@nestjs/common';
 import { PrismaService } from '@infrastructure/database/prisma.service';
-import { Prisma, LedgerJournal, LedgerEntry, LedgerAccount, JournalType } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import { LedgerJournal, LedgerEntry, LedgerAccount, JournalType } from '@common/shims/prisma-types.shim';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 
@@ -430,7 +431,7 @@ export class LedgerService {
     endDate?: Date,
     limit: number = 100,
   ): Promise<LedgerEntry[]> {
-    const where: Prisma.LedgerEntryWhereInput = { accountId };
+    const where: any = { accountId };
 
     if (startDate || endDate) {
       where.createdAt = {};

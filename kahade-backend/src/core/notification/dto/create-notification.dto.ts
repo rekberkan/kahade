@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsString, IsUUID, IsEnum, IsOptional } from 'class-validator';
-import { NotificationType } from '@prisma/client';
+import { NotificationType } from '@common/shims/prisma-types.shim';
 
 export class CreateNotificationDto {
   @ApiProperty({ example: '550e8400-e29b-41d4-a716-446655440000' })

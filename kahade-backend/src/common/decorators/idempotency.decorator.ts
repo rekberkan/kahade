@@ -79,12 +79,12 @@ export const IdempotencyKey = createParamDecorator(
  * Check if idempotency is required for a handler
  */
 export function isIdempotencyRequired(reflector: any, handler: any, classRef: any): boolean {
-  return reflector.getAllAndOverride<boolean>(IDEMPOTENCY_KEY, [handler, classRef]) ?? false;
+  return reflector.getAllAndOverride(IDEMPOTENCY_KEY, [handler, classRef]) ?? false;
 }
 
 /**
  * Get idempotency TTL for a handler
  */
 export function getIdempotencyTTL(reflector: any, handler: any, classRef: any): number {
-  return reflector.getAllAndOverride<number>(IDEMPOTENCY_TTL_KEY, [handler, classRef]) ?? 86400;
+  return reflector.getAllAndOverride(IDEMPOTENCY_TTL_KEY, [handler, classRef]) ?? 86400;
 }

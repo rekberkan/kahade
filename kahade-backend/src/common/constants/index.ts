@@ -5,8 +5,9 @@ export const USER_ROLES = {
 } as const;
 
 export const TRANSACTION_STATUS = {
-  PENDING: 'PENDING',
-  PAYMENT_CONFIRMED: 'PAYMENT_CONFIRMED',
+  PENDING_ACCEPT: 'PENDING_ACCEPT',
+  ACCEPTED: 'ACCEPTED',
+  PAID: 'PAID',
   COMPLETED: 'COMPLETED',
   DISPUTED: 'DISPUTED',
   CANCELLED: 'CANCELLED',
@@ -14,22 +15,33 @@ export const TRANSACTION_STATUS = {
 } as const;
 
 export const DISPUTE_STATUS = {
-  PENDING: 'PENDING',
-  UNDER_REVIEW: 'UNDER_REVIEW',
-  RESOLVED: 'RESOLVED',
-  REJECTED: 'REJECTED',
+  OPEN: 'OPEN',
+  RESPONDED: 'RESPONDED',
+  ESCALATED: 'ESCALATED',
+  UNDER_ARBITRATION: 'UNDER_ARBITRATION',
+  DECIDED: 'DECIDED',
+  APPEALED: 'APPEALED',
+  CLOSED: 'CLOSED',
 } as const;
 
 export const NOTIFICATION_TYPES = {
   TRANSACTION: 'TRANSACTION',
   DISPUTE: 'DISPUTE',
   PAYMENT: 'PAYMENT',
+  WITHDRAWAL: 'WITHDRAWAL',
+  KYC: 'KYC',
   SYSTEM: 'SYSTEM',
 } as const;
 
 export const QUEUE_NAMES = {
   EMAIL: 'email',
   NOTIFICATION: 'notification',
-  BLOCKCHAIN: 'blockchain',
   PAYMENT: 'payment',
+  WITHDRAWAL: 'withdrawal',
+  ESCROW: 'escrow',
 } as const;
+
+export * from './queue.constants';
+export * from './fees';
+export * from './limits';
+export * from './banks';

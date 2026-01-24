@@ -1,15 +1,19 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { authApi } from '@/lib/api';
 
 interface User {
   id: string;
   username: string;
   email: string;
   phone?: string;
+  role: 'USER' | 'ADMIN';
   isAdmin: boolean;
   kycStatus: 'NONE' | 'PENDING' | 'VERIFIED' | 'REJECTED';
   reputationScore: number;
   totalTransactions: number;
   emailVerifiedAt?: string;
+  avatarUrl?: string;
+  mfaEnabled?: boolean;
   createdAt: string;
 }
 
@@ -17,16 +21,16 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<User>;
   register: (data: RegisterData) => Promise<void>;
   logout: () => Promise<void>;
   updateUser: (user: User) => void;
+  refreshUser: () => Promise<void>;
 }
 
 interface RegisterData {
   email: string;
   username: string;
-  name: string;
   password: string;
   phone?: string;
 }
@@ -37,21 +41,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  const mapUserData = (userData: any, defaultUsername?: string): User => {
+    return {
+      id: userData.id,
+      username: userData.username || defaultUsername || userData.email?.split('@')[0],
+      email: userData.email,
+      phone: userData.phone,
+      role: userData.role || 'USER',
+      isAdmin: userData.role === 'ADMIN' || userData.isAdmin,
+      kycStatus: userData.kycStatus || 'NONE',
+      reputationScore: userData.reputationScore || 0,
+      totalTransactions: userData.totalTransactions || 0,
+      emailVerifiedAt: userData.emailVerifiedAt,
+      avatarUrl: userData.avatarUrl,
+      mfaEnabled: userData.mfaEnabled || false,
+      createdAt: userData.createdAt,
+    };
+  };
+
+  const fetchCurrentUser = async () => {
+    try {
+      const response = await authApi.me();
+      const userData = response.data.user || response.data;
+      const mappedUser = mapUserData(userData);
+      setUser(mappedUser);
+      localStorage.setItem('kahade_user', JSON.stringify(mappedUser));
+      return mappedUser;
+    } catch (error) {
+      localStorage.removeItem('kahade_token');
+      localStorage.removeItem('kahade_user');
+      setUser(null);
+      throw error;
+    }
+  };
+
   useEffect(() => {
-    // Check for existing session
     const checkAuth = async () => {
-      const token = localStorage.getItem('accessToken');
+      const token = localStorage.getItem('kahade_token');
       if (token) {
         try {
-          // In production, this would validate the token with the backend
-          const storedUser = localStorage.getItem('user');
-          if (storedUser) {
-            setUser(JSON.parse(storedUser));
-          }
+          await fetchCurrentUser();
         } catch (error) {
-          localStorage.removeItem('accessToken');
-          localStorage.removeItem('refreshToken');
-          localStorage.removeItem('user');
+          console.error('Auth check failed:', error);
         }
       }
       setIsLoading(false);
@@ -60,30 +91,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     checkAuth();
   }, []);
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string): Promise<User> => {
     setIsLoading(true);
     try {
-      // Mock login - in production, this would call the backend API
-      // const response = await api.post('/auth/login', { email, password });
+      const response = await authApi.login({ email, password });
+      const { accessToken, token, user: userData } = response.data;
       
-      // For demo purposes, simulate a successful login
-      const mockUser: User = {
-        id: '1',
-        username: email.split('@')[0],
-        email,
-        isAdmin: email.includes('admin'),
-        kycStatus: 'VERIFIED',
-        reputationScore: 4.8,
-        totalTransactions: 25,
-        emailVerifiedAt: new Date().toISOString(),
-        createdAt: new Date().toISOString(),
-      };
+      const authToken = accessToken || token;
+      localStorage.setItem('kahade_token', authToken);
       
-      localStorage.setItem('accessToken', 'mock-token');
-      localStorage.setItem('refreshToken', 'mock-refresh-token');
-      localStorage.setItem('user', JSON.stringify(mockUser));
-      
-      setUser(mockUser);
+      let mappedUser: User;
+      if (userData) {
+        mappedUser = mapUserData(userData, email.split('@')[0]);
+        setUser(mappedUser);
+        localStorage.setItem('kahade_user', JSON.stringify(mappedUser));
+      } else {
+        mappedUser = await fetchCurrentUser();
+      }
+      return mappedUser;
+    } catch (error: any) {
+      localStorage.removeItem('kahade_token');
+      localStorage.removeItem('kahade_user');
+      throw new Error(error.response?.data?.message || 'Login failed');
     } finally {
       setIsLoading(false);
     }
@@ -92,39 +121,56 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const register = async (data: RegisterData) => {
     setIsLoading(true);
     try {
-      // Mock registration - in production, this would call the backend API
-      const mockUser: User = {
-        id: '1',
-        username: data.username,
+      const response = await authApi.register({
         email: data.email,
-        phone: data.phone,
-        isAdmin: false,
-        kycStatus: 'NONE',
-        reputationScore: 0,
-        totalTransactions: 0,
-        createdAt: new Date().toISOString(),
-      };
+        username: data.username,
+        password: data.password,
+      });
       
-      localStorage.setItem('accessToken', 'mock-token');
-      localStorage.setItem('refreshToken', 'mock-refresh-token');
-      localStorage.setItem('user', JSON.stringify(mockUser));
+      const { accessToken, token, user: userData } = response.data;
       
-      setUser(mockUser);
+      if (accessToken || token) {
+        localStorage.setItem('kahade_token', accessToken || token);
+        
+        if (userData) {
+          const mappedUser = mapUserData(userData, data.username);
+          mappedUser.phone = data.phone;
+          setUser(mappedUser);
+          localStorage.setItem('kahade_user', JSON.stringify(mappedUser));
+        } else {
+          await fetchCurrentUser();
+        }
+      }
+    } catch (error: any) {
+      throw new Error(error.response?.data?.message || 'Registration failed');
     } finally {
       setIsLoading(false);
     }
   };
 
   const logout = async () => {
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-    localStorage.removeItem('user');
-    setUser(null);
+    try {
+      await authApi.logout();
+    } catch (error) {
+      console.error('Logout API error:', error);
+    } finally {
+      localStorage.removeItem('kahade_token');
+      localStorage.removeItem('kahade_user');
+      setUser(null);
+    }
   };
 
   const updateUser = (updatedUser: User) => {
     setUser(updatedUser);
-    localStorage.setItem('user', JSON.stringify(updatedUser));
+    localStorage.setItem('kahade_user', JSON.stringify(updatedUser));
+  };
+
+  const refreshUser = async () => {
+    try {
+      await fetchCurrentUser();
+    } catch (error) {
+      console.error('Failed to refresh user:', error);
+    }
   };
 
   return (
@@ -137,6 +183,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         register,
         logout,
         updateUser,
+        refreshUser,
       }}
     >
       {children}

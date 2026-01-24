@@ -165,7 +165,7 @@ async function bootstrap() {
   // ============================================================================
 
   // Health check route outside global prefix
-  app.getHttpAdapter().get('/health', (req, res) => {
+  app.getHttpAdapter().get('/health', (req: any, res: any) => {
     res.status(200).send({ status: 'ok', timestamp: new Date().toISOString() });
   });
 

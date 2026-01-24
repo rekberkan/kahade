@@ -1,13 +1,25 @@
-import { ArgumentsHost, Catch, HttpStatus } from '@nestjs/common';
-import { BaseExceptionFilter } from '@nestjs/core';
-import { Prisma } from '@prisma/client';
+import { ArgumentsHost, Catch, HttpStatus, ExceptionFilter, Logger } from '@nestjs/common';
 import { Response } from 'express';
 
-@Catch(Prisma.PrismaClientKnownRequestError)
-export class PrismaExceptionFilter extends BaseExceptionFilter {
-  catch(exception: Prisma.PrismaClientKnownRequestError, host: ArgumentsHost) {
+// Define the error type inline since Prisma types may not be available
+interface PrismaClientKnownRequestError extends Error {
+  code: string;
+  meta?: Record<string, any>;
+}
+
+@Catch()
+export class PrismaExceptionFilter implements ExceptionFilter {
+  private readonly logger = new Logger(PrismaExceptionFilter.name);
+
+  catch(exception: any, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
+
+    // Check if this is a Prisma error
+    if (!this.isPrismaError(exception)) {
+      // Re-throw if not a Prisma error
+      throw exception;
+    }
 
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let message = 'Internal server error';
@@ -25,9 +37,18 @@ export class PrismaExceptionFilter extends BaseExceptionFilter {
         status = HttpStatus.BAD_REQUEST;
         message = 'Foreign key constraint violation';
         break;
+      case 'P2014':
+        status = HttpStatus.BAD_REQUEST;
+        message = 'Required relation violation';
+        break;
+      case 'P2016':
+        status = HttpStatus.BAD_REQUEST;
+        message = 'Query interpretation error';
+        break;
       default:
         status = HttpStatus.INTERNAL_SERVER_ERROR;
-        message = exception.message;
+        message = 'Database error';
+        this.logger.error(`Prisma error: ${exception.code} - ${exception.message}`);
     }
 
     response.status(status).json({
@@ -35,5 +56,15 @@ export class PrismaExceptionFilter extends BaseExceptionFilter {
       message,
       timestamp: new Date().toISOString(),
     });
+  }
+
+  private isPrismaError(exception: any): exception is PrismaClientKnownRequestError {
+    return (
+      exception &&
+      typeof exception === 'object' &&
+      'code' in exception &&
+      typeof exception.code === 'string' &&
+      exception.code.startsWith('P')
+    );
   }
 }

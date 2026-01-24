@@ -1,4 +1,4 @@
-import { DisputeStatus } from '@prisma/client';
+import { DisputeStatus } from '@common/shims/prisma-types.shim';
 
 export interface IDispute {
   id: string;

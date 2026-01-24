@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Put, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
-import { DisputeService } from './dispute.service';
+import { DisputeService, CreateDisputeDto as ServiceCreateDisputeDto, ResolveDisputeDto as ServiceResolveDisputeDto } from './dispute.service';
 import { CreateDisputeDto } from './dto/create-dispute.dto';
 import { ResolveDisputeDto } from './dto/resolve-dispute.dto';
 import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
@@ -20,7 +20,11 @@ export class DisputeController {
   @ApiResponse({ status: 201, description: 'Dispute created successfully' })
   @ApiResponse({ status: 400, description: 'Bad request' })
   async create(@CurrentUser('id') userId: string, @Body() createDisputeDto: CreateDisputeDto) {
-    return this.disputeService.create(userId, createDisputeDto);
+    const dto: ServiceCreateDisputeDto = {
+      orderId: createDisputeDto.orderId,
+      reason: createDisputeDto.reason,
+    };
+    return this.disputeService.create(userId, dto);
   }
 
   @Get()
@@ -47,7 +51,17 @@ export class DisputeController {
   @Roles('ADMIN')
   @ApiOperation({ summary: 'Resolve dispute (Admin only)' })
   @ApiResponse({ status: 200, description: 'Dispute resolved successfully' })
-  async resolve(@Param('id') id: string, @Body() resolveDisputeDto: ResolveDisputeDto) {
-    return this.disputeService.resolve(id, resolveDisputeDto);
+  async resolve(
+    @Param('id') id: string,
+    @CurrentUser('id') adminId: string,
+    @Body() resolveDisputeDto: ResolveDisputeDto,
+  ) {
+    const dto: ServiceResolveDisputeDto = {
+      decision: resolveDisputeDto.decision,
+      sellerAmountMinor: resolveDisputeDto.sellerAmountMinor,
+      buyerRefundMinor: resolveDisputeDto.buyerRefundMinor,
+      resolutionNotes: resolveDisputeDto.resolutionNotes,
+    };
+    return this.disputeService.resolve(id, adminId, dto);
   }
 }

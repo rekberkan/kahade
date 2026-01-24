@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '@infrastructure/database/prisma.service';
-import { Notification } from '@prisma/client';
+import { Notification } from '@common/shims/prisma-types.shim';
 
 export interface ICreateNotification {
   userId: string;
@@ -32,15 +32,30 @@ export class NotificationRepository {
     });
   }
 
-  async findByUser(userId: string, skip: number, take: number): Promise<{ notifications: Notification[]; total: number }> {
+  async findByUser(
+    userId: string,
+    skip: number,
+    take: number,
+    read?: boolean,
+  ): Promise<{ notifications: Notification[]; total: number }> {
+    const where: any = { userId };
+    
+    if (read !== undefined) {
+      if (read) {
+        where.readAt = { not: null };
+      } else {
+        where.readAt = null;
+      }
+    }
+
     const [notifications, total] = await Promise.all([
       this.prisma.notification.findMany({
-        where: { userId },
+        where,
         skip,
         take,
         orderBy: { createdAt: 'desc' },
       }),
-      this.prisma.notification.count({ where: { userId } }),
+      this.prisma.notification.count({ where }),
     ]);
 
     return { notifications, total };

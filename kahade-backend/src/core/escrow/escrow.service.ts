@@ -7,7 +7,8 @@ import {
   InternalServerErrorException,
 } from '@nestjs/common';
 import { PrismaService } from '@infrastructure/database/prisma.service';
-import { Prisma, EscrowHold, EscrowHoldStatus, Order, OrderStatus } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import { EscrowHold, EscrowHoldStatus, Order, OrderStatus } from '@common/shims/prisma-types.shim';
 import { ConfigService } from '@nestjs/config';
 import { WalletService } from '../wallet/wallet.service';
 import { LedgerService } from '../ledger/ledger.service';
@@ -46,11 +47,12 @@ export class UnauthorizedTransitionError extends ForbiddenException {
  * Defines all valid state transitions
  */
 const ESCROW_STATE_MACHINE: Record<EscrowHoldStatus, EscrowHoldStatus[]> = {
-  ACTIVE: [EscrowHoldStatus.RELEASED, EscrowHoldStatus.REFUNDED, EscrowHoldStatus.DISPUTED],
-  DISPUTED: [EscrowHoldStatus.ADJUSTED, EscrowHoldStatus.RELEASED, EscrowHoldStatus.REFUNDED],
-  RELEASED: [], // Terminal state
-  REFUNDED: [], // Terminal state
-  ADJUSTED: [], // Terminal state (dispute resolution)
+  [EscrowHoldStatus.ACTIVE]: [EscrowHoldStatus.RELEASED, EscrowHoldStatus.REFUNDED, EscrowHoldStatus.DISPUTED],
+  [EscrowHoldStatus.HELD]: [EscrowHoldStatus.RELEASED, EscrowHoldStatus.REFUNDED, EscrowHoldStatus.DISPUTED],
+  [EscrowHoldStatus.DISPUTED]: [EscrowHoldStatus.ADJUSTED, EscrowHoldStatus.RELEASED, EscrowHoldStatus.REFUNDED],
+  [EscrowHoldStatus.RELEASED]: [], // Terminal state
+  [EscrowHoldStatus.REFUNDED]: [], // Terminal state
+  [EscrowHoldStatus.ADJUSTED]: [], // Terminal state (dispute resolution)
 };
 
 /**
@@ -58,13 +60,14 @@ const ESCROW_STATE_MACHINE: Record<EscrowHoldStatus, EscrowHoldStatus[]> = {
  * Defines all valid state transitions
  */
 const ORDER_STATE_MACHINE: Record<OrderStatus, OrderStatus[]> = {
-  PENDING_ACCEPT: [OrderStatus.ACCEPTED, OrderStatus.CANCELLED],
-  ACCEPTED: [OrderStatus.PAID, OrderStatus.CANCELLED],
-  PAID: [OrderStatus.COMPLETED, OrderStatus.REFUNDED, OrderStatus.DISPUTED],
-  COMPLETED: [], // Terminal state
-  CANCELLED: [], // Terminal state
-  REFUNDED: [], // Terminal state
-  DISPUTED: [OrderStatus.COMPLETED, OrderStatus.REFUNDED], // After dispute resolution
+  [OrderStatus.WAITING_COUNTERPARTY]: [OrderStatus.PENDING_ACCEPT, OrderStatus.CANCELLED],
+  [OrderStatus.PENDING_ACCEPT]: [OrderStatus.ACCEPTED, OrderStatus.CANCELLED],
+  [OrderStatus.ACCEPTED]: [OrderStatus.PAID, OrderStatus.CANCELLED],
+  [OrderStatus.PAID]: [OrderStatus.COMPLETED, OrderStatus.REFUNDED, OrderStatus.DISPUTED],
+  [OrderStatus.COMPLETED]: [], // Terminal state
+  [OrderStatus.CANCELLED]: [], // Terminal state
+  [OrderStatus.REFUNDED]: [], // Terminal state
+  [OrderStatus.DISPUTED]: [OrderStatus.COMPLETED, OrderStatus.REFUNDED], // After dispute resolution
 };
 
 export interface CreateEscrowOptions {

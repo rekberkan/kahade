@@ -9,7 +9,6 @@ import appConfig from './config/app.config';
 import databaseConfig from './config/database.config';
 import jwtConfig from './config/jwt.config';
 import redisConfig from './config/redis.config';
-import blockchainConfig from './config/blockchain.config';
 import emailConfig from './config/email.config';
 import paymentConfig from './config/payment.config';
 import queueConfig from './config/queue.config';
@@ -42,7 +41,6 @@ import { WalletModule } from './core/wallet/wallet.module';
 import { WithdrawalModule } from './core/withdrawal/withdrawal.module';
 
 // Integration Modules
-import { BlockchainModule } from './integrations/blockchain/blockchain.module';
 import { PaymentModule as IntegrationPaymentModule } from './integrations/payment/payment.module';
 import { EmailModule } from './integrations/email/email.module';
 
@@ -65,7 +63,6 @@ import { ThrottlerModule } from '@nestjs/throttler';
         databaseConfig,
         jwtConfig,
         redisConfig,
-        blockchainConfig,
         emailConfig,
         paymentConfig,
         queueConfig,
@@ -116,7 +113,6 @@ import { ThrottlerModule } from '@nestjs/throttler';
     WithdrawalModule,
 
     // Integration Modules
-    BlockchainModule,
     IntegrationPaymentModule,
     EmailModule,
     JobsModule,

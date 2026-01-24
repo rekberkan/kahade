@@ -19,7 +19,6 @@ export default function Register() {
   const { register, isLoading } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
-    name: '',
     username: '',
     email: '',
     phone: '',
@@ -30,6 +29,16 @@ export default function Register() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!formData.username || !formData.email || !formData.password) {
+      toast.error('Mohon isi semua field yang wajib');
+      return;
+    }
+
+    if (formData.password.length < 8) {
+      toast.error('Password minimal 8 karakter');
+      return;
+    }
     
     if (formData.password !== formData.confirmPassword) {
       toast.error('Password tidak cocok');
@@ -43,28 +52,25 @@ export default function Register() {
     
     try {
       await register({
-        name: formData.name,
         username: formData.username,
         email: formData.email,
-        phone: formData.phone,
         password: formData.password
       });
       toast.success('Registrasi berhasil!', {
         description: 'Silakan cek email Anda untuk verifikasi.'
       });
       setLocation('/dashboard');
-    } catch (error) {
-      toast.error('Registrasi gagal', {
-        description: 'Silakan coba lagi.'
-      });
+    } catch (error: any) {
+      const message = error.response?.data?.message || 'Silakan coba lagi.';
+      toast.error('Registrasi gagal', { description: message });
     }
   };
 
   const benefits = [
-    'Transaksi aman dengan escrow',
-    'Integrasi blockchain transparan',
+    'Transaksi aman dengan sistem escrow',
+    'Perlindungan pembeli dan penjual',
     'Dukungan pelanggan 24/7',
-    'Biaya kompetitif'
+    'Biaya kompetitif mulai 2.5%'
   ];
 
   return (
@@ -81,11 +87,9 @@ export default function Register() {
           transition={{ delay: 0.2 }}
           className="relative z-10 max-w-md"
         >
-          <img 
-            src="/images/escrow-illustration.png" 
-            alt="Escrow" 
-            className="w-64 h-64 mx-auto mb-8"
-          />
+          <div className="w-64 h-64 mx-auto mb-8 rounded-full bg-gradient-to-br from-accent/20 to-primary/20 flex items-center justify-center">
+            <Shield className="w-32 h-32 text-accent" />
+          </div>
           <h2 className="text-2xl font-display font-bold mb-4 text-center">
             Bergabung dengan Kahade
           </h2>
@@ -129,37 +133,23 @@ export default function Register() {
           </p>
           
           <form onSubmit={handleSubmit} className="space-y-5">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Nama Lengkap</Label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                  <Input
-                    id="name"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="John Doe"
-                    required
-                    className="pl-10 bg-white/5 border-white/10"
-                  />
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="username">Username</Label>
+            <div className="space-y-2">
+              <Label htmlFor="username">Username *</Label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                 <Input
                   id="username"
                   value={formData.username}
                   onChange={(e) => setFormData({ ...formData, username: e.target.value })}
                   placeholder="johndoe"
                   required
-                  className="bg-white/5 border-white/10"
+                  className="pl-10 bg-white/5 border-white/10"
                 />
               </div>
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">Email *</Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                 <Input
@@ -191,7 +181,7 @@ export default function Register() {
             
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password">Password *</Label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                   <Input
@@ -208,7 +198,7 @@ export default function Register() {
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="confirmPassword">Konfirmasi</Label>
+                <Label htmlFor="confirmPassword">Konfirmasi *</Label>
                 <div className="relative">
                   <Input
                     id="confirmPassword"
@@ -229,6 +219,8 @@ export default function Register() {
                 </div>
               </div>
             </div>
+            
+            <p className="text-xs text-muted-foreground">Password minimal 8 karakter</p>
             
             <div className="flex items-start gap-2">
               <Checkbox

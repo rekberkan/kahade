@@ -224,8 +224,10 @@ export class SessionRepository {
         OR: [
           { expiresAt: { lt: new Date() } },
           {
-            revokedAt: { not: null },
-            revokedAt: { lt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) }, // Older than 7 days
+            AND: [
+              { revokedAt: { not: null } },
+              { revokedAt: { lt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } }, // Older than 7 days
+            ],
           },
         ],
       },

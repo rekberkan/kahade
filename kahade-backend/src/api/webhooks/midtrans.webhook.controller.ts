@@ -12,7 +12,23 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '@infrastructure/database/prisma.service';
-import { PaymentStatus, WebhookStatus } from '@prisma/client';
+// Payment and webhook status enums
+enum PaymentStatus {
+  PENDING = 'PENDING',
+  PROCESSING = 'PROCESSING',
+  SUCCESS = 'SUCCESS',
+  FAILED = 'FAILED',
+  EXPIRED = 'EXPIRED',
+  CANCELLED = 'CANCELLED',
+}
+
+enum WebhookStatus {
+  PENDING = 'PENDING',
+  RECEIVED = 'RECEIVED',
+  PROCESSED = 'PROCESSED',
+  FAILED = 'FAILED',
+  IGNORED = 'IGNORED',
+}
 import * as crypto from 'crypto';
 import { Request } from 'express';
 

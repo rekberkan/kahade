@@ -1,4 +1,4 @@
-import { Controller, Get, Put, Delete, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Patch, Delete, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { NotificationService } from './notification.service';
 import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
@@ -13,22 +13,17 @@ export class NotificationController {
 
   @Get()
   @ApiOperation({ summary: 'Get all notifications for current user' })
+  @ApiQuery({ name: 'read', required: false, type: Boolean })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiResponse({ status: 200, description: 'Returns paginated notifications' })
   async findAll(
     @CurrentUser('id') userId: string,
+    @Query('read') read?: boolean,
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
   ) {
-    return this.notificationService.findAllByUser(userId, { page, limit });
-  }
-
-  @Get('unread')
-  @ApiOperation({ summary: 'Get unread notifications' })
-  @ApiResponse({ status: 200, description: 'Returns unread notifications' })
-  async findUnread(@CurrentUser('id') userId: string) {
-    return this.notificationService.findUnread(userId);
+    return this.notificationService.findAllByUser(userId, { read, page, limit });
   }
 
   @Get('unread/count')
@@ -39,14 +34,14 @@ export class NotificationController {
     return { count };
   }
 
-  @Put(':id/read')
+  @Patch(':id/read')
   @ApiOperation({ summary: 'Mark notification as read' })
   @ApiResponse({ status: 200, description: 'Notification marked as read' })
   async markAsRead(@Param('id') id: string, @CurrentUser('id') userId: string) {
     return this.notificationService.markAsRead(id, userId);
   }
 
-  @Put('read-all')
+  @Patch('read-all')
   @ApiOperation({ summary: 'Mark all notifications as read' })
   @ApiResponse({ status: 200, description: 'All notifications marked as read' })
   async markAllAsRead(@CurrentUser('id') userId: string) {
@@ -59,12 +54,5 @@ export class NotificationController {
   async delete(@Param('id') id: string, @CurrentUser('id') userId: string) {
     await this.notificationService.delete(id, userId);
     return { message: 'Notification deleted successfully' };
-  }
-
-  @Delete()
-  @ApiOperation({ summary: 'Delete all notifications' })
-  @ApiResponse({ status: 200, description: 'All notifications deleted' })
-  async deleteAll(@CurrentUser('id') userId: string) {
-    return this.notificationService.deleteAll(userId);
   }
 }

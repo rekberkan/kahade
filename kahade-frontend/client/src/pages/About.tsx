@@ -33,7 +33,7 @@ const values = [
 
 const milestones = [
   { year: '2023', title: 'Didirikan', description: 'Kahade didirikan dengan visi menjadi platform escrow terpercaya.' },
-  { year: '2024', title: 'Integrasi Blockchain', description: 'Meluncurkan fitur blockchain untuk transparansi maksimal.' },
+  { year: '2024', title: 'Peluncuran Platform', description: 'Meluncurkan platform escrow dengan fitur keamanan lengkap.' },
   { year: '2024', title: '10,000 Pengguna', description: 'Mencapai milestone 10,000 pengguna aktif.' },
   { year: '2025', title: 'Ekspansi Regional', description: 'Memperluas layanan ke seluruh Asia Tenggara.' }
 ];
@@ -95,7 +95,7 @@ export default function About() {
               <h2 className="text-2xl font-display font-bold mb-4">Visi Kami</h2>
               <p className="text-muted-foreground">
                 Menjadi platform escrow terdepan di Asia Tenggara yang dikenal karena keamanan, 
-                transparansi, dan inovasi teknologi blockchain. Kami ingin setiap orang dapat 
+                transparansi, dan inovasi teknologi. Kami ingin setiap orang dapat 
                 bertransaksi online dengan tenang dan percaya diri.
               </p>
             </motion.div>

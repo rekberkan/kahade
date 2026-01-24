@@ -216,7 +216,7 @@ export default function Contact() {
                     <p className="text-sm text-muted-foreground mb-3">
                       Butuh bantuan cepat? Tim support kami tersedia via live chat.
                     </p>
-                    <Button className="btn-secondary" onClick={() => toast.info('Fitur coming soon')}>
+                    <Button className="btn-secondary" onClick={() => window.open('https://wa.me/6281234567890', '_blank')}>
                       Mulai Chat
                     </Button>
                   </div>

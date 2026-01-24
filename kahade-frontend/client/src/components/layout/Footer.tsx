@@ -52,7 +52,7 @@ export default function Footer() {
               <span className="text-xl font-display font-bold">Kahade</span>
             </Link>
             <p className="text-muted-foreground text-sm mb-6 max-w-sm">
-              Platform escrow P2P terpercaya dengan integrasi blockchain untuk transaksi yang aman dan transparan.
+              Platform rekber/escrow P2P terpercaya untuk transaksi online yang aman dan transparan.
             </p>
             
             {/* Newsletter */}

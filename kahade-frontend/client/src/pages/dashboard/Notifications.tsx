@@ -2,65 +2,34 @@
  * KAHADE NOTIFICATIONS PAGE
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
-  Bell, CheckCircle2, AlertCircle, Info, Wallet, ArrowLeftRight,
-  Check, Trash2
+  Bell, AlertCircle, Info, Wallet, ArrowLeftRight,
+  Check, Trash2, Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import DashboardLayout from '@/components/layout/DashboardLayout';
+import { notificationApi } from '@/lib/api';
 
-// Mock data
-const notifications = [
-  {
-    id: '1',
-    type: 'transaction',
-    title: 'Transaksi Baru',
-    message: 'Anda menerima undangan transaksi dari TechStore untuk pembelian iPhone 15 Pro.',
-    read: false,
-    createdAt: '2025-01-24T14:00:00Z'
-  },
-  {
-    id: '2',
-    type: 'payment',
-    title: 'Pembayaran Diterima',
-    message: 'Pembayaran untuk transaksi #KHD-2025-0001 telah diterima.',
-    read: false,
-    createdAt: '2025-01-24T10:30:00Z'
-  },
-  {
-    id: '3',
-    type: 'info',
-    title: 'Verifikasi KYC',
-    message: 'Tingkatkan limit transaksi Anda dengan verifikasi KYC.',
-    read: true,
-    createdAt: '2025-01-23T09:00:00Z'
-  },
-  {
-    id: '4',
-    type: 'transaction',
-    title: 'Transaksi Selesai',
-    message: 'Transaksi #KHD-2025-0003 telah selesai. Terima kasih telah menggunakan Kahade!',
-    read: true,
-    createdAt: '2025-01-22T16:00:00Z'
-  },
-  {
-    id: '5',
-    type: 'alert',
-    title: 'Dispute Diajukan',
-    message: 'Pembeli mengajukan dispute untuk transaksi #KHD-2025-0005.',
-    read: true,
-    createdAt: '2025-01-21T11:00:00Z'
-  },
-];
+interface Notification {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  read: boolean;
+  createdAt: string;
+  data?: any;
+}
 
 const typeConfig: Record<string, { icon: typeof Bell; color: string; bgColor: string }> = {
-  transaction: { icon: ArrowLeftRight, color: 'text-blue-500', bgColor: 'bg-blue-500/10' },
-  payment: { icon: Wallet, color: 'text-emerald-500', bgColor: 'bg-emerald-500/10' },
-  info: { icon: Info, color: 'text-accent', bgColor: 'bg-accent/10' },
-  alert: { icon: AlertCircle, color: 'text-red-500', bgColor: 'bg-red-500/10' },
+  TRANSACTION: { icon: ArrowLeftRight, color: 'text-blue-500', bgColor: 'bg-blue-500/10' },
+  PAYMENT: { icon: Wallet, color: 'text-emerald-500', bgColor: 'bg-emerald-500/10' },
+  INFO: { icon: Info, color: 'text-accent', bgColor: 'bg-accent/10' },
+  ALERT: { icon: AlertCircle, color: 'text-red-500', bgColor: 'bg-red-500/10' },
+  DISPUTE: { icon: AlertCircle, color: 'text-orange-500', bgColor: 'bg-orange-500/10' },
+  SYSTEM: { icon: Info, color: 'text-gray-500', bgColor: 'bg-gray-500/10' },
 };
 
 const formatDate = (dateString: string) => {
@@ -81,32 +50,96 @@ const formatDate = (dateString: string) => {
 };
 
 export default function Notifications() {
-  const [notifs, setNotifs] = useState(notifications);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [filter, setFilter] = useState<'all' | 'unread'>('all');
   
-  const unreadCount = notifs.filter(n => !n.read).length;
+  useEffect(() => {
+    fetchNotifications();
+  }, [filter]);
 
-  const handleMarkAllRead = () => {
-    setNotifs(notifs.map(n => ({ ...n, read: true })));
-    toast.success('Semua notifikasi ditandai sudah dibaca');
+  const fetchNotifications = async () => {
+    setIsLoading(true);
+    try {
+      const params: any = { limit: 50 };
+      if (filter === 'unread') params.read = false;
+      
+      const response = await notificationApi.list(params);
+      setNotifications(response.data.data || response.data.notifications || []);
+    } catch (error) {
+      console.error('Failed to fetch notifications:', error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleMarkRead = (id: string) => {
-    setNotifs(notifs.map(n => n.id === id ? { ...n, read: true } : n));
+  const unreadCount = notifications.filter(n => !n.read).length;
+
+  const handleMarkAllRead = async () => {
+    try {
+      await notificationApi.markAllRead();
+      setNotifications(notifications.map(n => ({ ...n, read: true })));
+      toast.success('Semua notifikasi ditandai sudah dibaca');
+    } catch (error) {
+      toast.error('Gagal menandai notifikasi');
+    }
   };
 
-  const handleDelete = (id: string) => {
-    setNotifs(notifs.filter(n => n.id !== id));
-    toast.success('Notifikasi dihapus');
+  const handleMarkRead = async (id: string) => {
+    try {
+      await notificationApi.markRead(id);
+      setNotifications(notifications.map(n => n.id === id ? { ...n, read: true } : n));
+    } catch (error) {
+      toast.error('Gagal menandai notifikasi');
+    }
   };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await notificationApi.delete(id);
+      setNotifications(notifications.filter(n => n.id !== id));
+      toast.success('Notifikasi dihapus');
+    } catch (error) {
+      toast.error('Gagal menghapus notifikasi');
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <DashboardLayout title="Notifikasi" subtitle="Memuat...">
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="w-8 h-8 animate-spin text-accent" />
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout title="Notifikasi" subtitle={`${unreadCount} notifikasi belum dibaca`}>
       <div className="space-y-6">
         {/* Header Actions */}
         <div className="flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <Bell className="w-5 h-5 text-accent" />
-            <span className="font-medium">{notifs.length} Notifikasi</span>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <Bell className="w-5 h-5 text-accent" />
+              <span className="font-medium">{notifications.length} Notifikasi</span>
+            </div>
+            <div className="flex gap-2">
+              <Button 
+                variant={filter === 'all' ? 'default' : 'ghost'} 
+                size="sm"
+                onClick={() => setFilter('all')}
+              >
+                Semua
+              </Button>
+              <Button 
+                variant={filter === 'unread' ? 'default' : 'ghost'} 
+                size="sm"
+                onClick={() => setFilter('unread')}
+              >
+                Belum Dibaca
+              </Button>
+            </div>
           </div>
           {unreadCount > 0 && (
             <Button variant="ghost" size="sm" onClick={handleMarkAllRead}>
@@ -118,9 +151,9 @@ export default function Notifications() {
         
         {/* Notifications List */}
         <div className="space-y-3">
-          {notifs.length > 0 ? (
-            notifs.map((notif, index) => {
-              const config = typeConfig[notif.type];
+          {notifications.length > 0 ? (
+            notifications.map((notif, index) => {
+              const config = typeConfig[notif.type] || typeConfig.INFO;
               const Icon = config.icon;
               
               return (
@@ -179,7 +212,10 @@ export default function Notifications() {
               </div>
               <h3 className="font-display font-semibold mb-2">Tidak ada notifikasi</h3>
               <p className="text-sm text-muted-foreground">
-                Anda akan menerima notifikasi tentang transaksi dan aktivitas akun di sini.
+                {filter === 'unread' 
+                  ? 'Semua notifikasi sudah dibaca.'
+                  : 'Anda akan menerima notifikasi tentang transaksi dan aktivitas akun di sini.'
+                }
               </p>
             </div>
           )}
