@@ -1,124 +1,83 @@
 // ============================================================================
 // PRISMA TYPES SHIM - Production Ready
 // All types that are used across the application
+// This file should be kept in sync with prisma/schema/00_base.prisma
 // ============================================================================
 
-export enum OrderCategory {
-  ELECTRONICS = 'ELECTRONICS',
-  SERVICES = 'SERVICES',
-  DIGITAL_GOODS = 'DIGITAL_GOODS',
-  PHYSICAL_GOODS = 'PHYSICAL_GOODS',
-  OTHER = 'OTHER',
-}
+// Re-export enums from Prisma client for type safety
+export {
+  OrderCategory,
+  InitiatorRole,
+  FeePayer,
+  Currency,
+  OrderStatus,
+  EscrowHoldStatus,
+  DisputeStatus,
+  DisputeDecision,
+  KYCStatus,
+  WithdrawalStatus,
+  JournalType,
+  PaymentStatus,
+  PaymentProvider,
+  PaymentType,
+  PaymentMethod,
+  ActivityType,
+  LedgerAccountType,
+  WebhookStatus,
+  DepositStatus,
+  ReferralStatus,
+  ReferralRewardType,
+  ReferralRewardStatus,
+  VoucherType,
+  VoucherStatus,
+  PromoTargetType,
+  ScheduledJobStatus,
+} from '@prisma/client';
 
-export enum InitiatorRole {
-  BUYER = 'BUYER',
-  SELLER = 'SELLER',
-}
+// Re-export types from Prisma client
+export type {
+  User,
+  Order,
+  Wallet,
+  Withdrawal,
+  Dispute,
+  EscrowHold,
+  Notification,
+  LedgerJournal,
+  LedgerEntry,
+  LedgerAccount,
+  Payment,
+  BankAccount,
+  KYCSubmission,
+  Rating,
+  ReferralCode,
+  ReferralUsage,
+  ReferralReward,
+  Promo,
+  Voucher,
+  VoucherUsage,
+  UserActivity,
+  AuditLog,
+  SystemConfig,
+  ScheduledJob,
+  WebhookEvent,
+  Deposit,
+  DeliveryProof,
+  DisputeEvidence,
+  DisputeTimeline,
+  OrderSettlement,
+  WalletAdjustment,
+} from '@prisma/client';
 
-export enum FeePayer {
-  BUYER = 'BUYER',
-  SELLER = 'SELLER',
-  SPLIT = 'SPLIT',
-  FIFTY_FIFTY = 'FIFTY_FIFTY',
-}
+// Legacy type aliases for backward compatibility
+export type Transaction = import('@prisma/client').Order;
+export type WalletTransaction = import('@prisma/client').WalletAdjustment;
+export type KYCDocument = import('@prisma/client').KYCSubmission;
+export type Referral = import('@prisma/client').ReferralCode;
+export type Activity = import('@prisma/client').UserActivity;
+export type WebhookLog = import('@prisma/client').WebhookEvent;
 
-export enum Currency {
-  IDR = 'IDR',
-  USD = 'USD',
-}
-
-export enum OrderStatus {
-  WAITING_COUNTERPARTY = 'WAITING_COUNTERPARTY',
-  PENDING_ACCEPT = 'PENDING_ACCEPT',
-  ACCEPTED = 'ACCEPTED',
-  PAID = 'PAID',
-  COMPLETED = 'COMPLETED',
-  CANCELLED = 'CANCELLED',
-  DISPUTED = 'DISPUTED',
-  REFUNDED = 'REFUNDED',
-}
-
-export enum TransactionStatus {
-  PENDING = 'PENDING',
-  PAYMENT_CONFIRMED = 'PAYMENT_CONFIRMED',
-  COMPLETED = 'COMPLETED',
-  DISPUTED = 'DISPUTED',
-  CANCELLED = 'CANCELLED',
-  REFUNDED = 'REFUNDED',
-}
-
-export enum KYCStatus {
-  NONE = 'NONE',
-  PENDING = 'PENDING',
-  VERIFIED = 'VERIFIED',
-  REJECTED = 'REJECTED',
-}
-
-export enum WithdrawalStatus {
-  PENDING = 'PENDING',
-  PROCESSING = 'PROCESSING',
-  APPROVED = 'APPROVED',
-  COMPLETED = 'COMPLETED',
-  FAILED = 'FAILED',
-  REJECTED = 'REJECTED',
-}
-
-export enum WalletTransactionType {
-  DEPOSIT = 'DEPOSIT',
-  WITHDRAWAL = 'WITHDRAWAL',
-  ESCROW_LOCK = 'ESCROW_LOCK',
-  ESCROW_RELEASE = 'ESCROW_RELEASE',
-  REFUND = 'REFUND',
-  FEE = 'FEE',
-  TRANSFER = 'TRANSFER',
-}
-
-export enum DisputeStatus {
-  OPEN = 'OPEN',
-  RESPONDED = 'RESPONDED',
-  UNDER_REVIEW = 'UNDER_REVIEW',
-  UNDER_ARBITRATION = 'UNDER_ARBITRATION',
-  AWAITING_RESPONSE = 'AWAITING_RESPONSE',
-  DECIDED = 'DECIDED',
-  APPEALED = 'APPEALED',
-  RESOLVED = 'RESOLVED',
-  CLOSED = 'CLOSED',
-  ESCALATED = 'ESCALATED',
-}
-
-export enum DisputeDecision {
-  PENDING = 'PENDING',
-  BUYER_WINS = 'BUYER_WINS',
-  SELLER_WINS = 'SELLER_WINS',
-  SPLIT = 'SPLIT',
-  CANCELLED = 'CANCELLED',
-  RELEASE_ALL_TO_SELLER = 'RELEASE_ALL_TO_SELLER',
-  REFUND_ALL_TO_BUYER = 'REFUND_ALL_TO_BUYER',
-  SPLIT_SETTLEMENT = 'SPLIT_SETTLEMENT',
-  CANCEL_VOID = 'CANCEL_VOID',
-}
-
-export enum EscrowHoldStatus {
-  ACTIVE = 'ACTIVE',
-  HELD = 'HELD',
-  RELEASED = 'RELEASED',
-  REFUNDED = 'REFUNDED',
-  DISPUTED = 'DISPUTED',
-  ADJUSTED = 'ADJUSTED',
-}
-
-export enum JournalType {
-  DEPOSIT = 'DEPOSIT',
-  WITHDRAWAL = 'WITHDRAWAL',
-  ESCROW_LOCK = 'ESCROW_LOCK',
-  ESCROW_RELEASE = 'ESCROW_RELEASE',
-  TRANSFER = 'TRANSFER',
-  FEE = 'FEE',
-  REFUND = 'REFUND',
-  ADJUSTMENT = 'ADJUSTMENT',
-}
-
+// Custom enums not in Prisma (for application logic)
 export enum UserRole {
   USER = 'USER',
   ADMIN = 'ADMIN',
@@ -140,39 +99,45 @@ export enum NotificationType {
   KYC = 'KYC',
 }
 
-export enum ActivityType {
-  LOGIN = 'LOGIN',
-  LOGOUT = 'LOGOUT',
-  TRANSACTION_CREATED = 'TRANSACTION_CREATED',
-  TRANSACTION_UPDATED = 'TRANSACTION_UPDATED',
-  PROFILE_UPDATED = 'PROFILE_UPDATED',
-  WALLET_TOPUP = 'WALLET_TOPUP',
-  WALLET_WITHDRAW = 'WALLET_WITHDRAW',
+export enum WalletTransactionType {
+  DEPOSIT = 'DEPOSIT',
+  WITHDRAWAL = 'WITHDRAWAL',
+  ESCROW_LOCK = 'ESCROW_LOCK',
+  ESCROW_RELEASE = 'ESCROW_RELEASE',
+  REFUND = 'REFUND',
+  FEE = 'FEE',
+  TRANSFER = 'TRANSFER',
 }
 
-// Type aliases for Prisma models
-export type Transaction = any;
-export type Order = any;
-export type User = any;
-export type Notification = any;
-export type Wallet = any;
-export type Withdrawal = any;
-export type WalletTransaction = any;
-export type Dispute = any;
-export type EscrowHold = any;
-export type LedgerJournal = any;
-export type LedgerEntry = any;
-export type LedgerAccount = any;
+export enum TransactionStatus {
+  PENDING = 'PENDING',
+  PAYMENT_CONFIRMED = 'PAYMENT_CONFIRMED',
+  COMPLETED = 'COMPLETED',
+  DISPUTED = 'DISPUTED',
+  CANCELLED = 'CANCELLED',
+  REFUNDED = 'REFUNDED',
+}
+
+export enum BankAccountType {
+  SAVINGS = 'SAVINGS',
+  CHECKING = 'CHECKING',
+}
+
+export enum AuditAction {
+  CREATE = 'CREATE',
+  UPDATE = 'UPDATE',
+  DELETE = 'DELETE',
+}
 
 export interface IOrderResponse {
   id: string;
   orderNumber: string;
   title: string;
   description: string;
-  category: OrderCategory;
-  currency: Currency;
+  category: string;
+  currency: string;
   amount: number;
-  status: OrderStatus;
+  status: string;
   initiatorId: string;
   counterpartyId?: string;
   createdAt: Date;
@@ -184,10 +149,10 @@ export interface ITransactionResponse {
   orderNumber: string;
   title: string;
   description: string;
-  category: OrderCategory;
-  currency: Currency;
+  category: string;
+  currency: string;
   amount: number;
-  status: OrderStatus;
+  status: string;
   initiatorId: string;
   counterpartyId?: string;
   initiatorRole?: string;
@@ -210,4 +175,22 @@ export interface ITransactionResponse {
   deliveryProof?: any;
   dispute?: any;
   ratings?: any[];
+}
+
+// Journal with entries type for ledger operations
+export interface JournalWithEntries {
+  id: string;
+  createdAt: Date;
+  description: string;
+  currency: string;
+  amountMinor: bigint;
+  type: string;
+  orderId: string | null;
+  disputeId: string | null;
+  entries: Array<{
+    id: string;
+    accountId: string;
+    debitMinor: bigint;
+    creditMinor: bigint;
+  }>;
 }

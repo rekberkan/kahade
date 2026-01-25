@@ -14,7 +14,7 @@ import { Router } from 'express';
  * Use: /api/v1/maps/proxy/js?libraries=marker,places
  */
 
-const router = Router();
+const router: import("express").Router = Router();
 
 // Health check
 router.get('/health', (_req, res) => {

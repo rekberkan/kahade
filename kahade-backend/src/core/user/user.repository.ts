@@ -9,17 +9,14 @@ import { User } from '@common/shims/prisma-types.shim';
 export interface ICreateUser {
   email: string;
   passwordHash: string;
-  name?: string;
-  username?: string;
+  username: string; // Required by Prisma schema
   phone?: string;
   isAdmin?: boolean;
 }
 
 export interface IUpdateUser {
-  name?: string;
   username?: string;
   phone?: string;
-  avatar?: string;
   emailVerifiedAt?: Date;
   lastLoginAt?: Date;
   failedLoginCount?: number;
@@ -37,7 +34,6 @@ export interface IUpdateUser {
   lastFailedLoginAt?: Date | null;
   // KYC
   kycStatus?: string;
-  kycRejectionReason?: string;
 }
 
 @Injectable()

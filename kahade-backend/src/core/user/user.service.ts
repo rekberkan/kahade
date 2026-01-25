@@ -68,7 +68,6 @@ export class UserService {
 
     const updateData: IUpdateUser = {};
 
-    if (updateUserDto.name) updateData.name = updateUserDto.name;
     if (updateUserDto.username) {
       // Check if username is taken by another user
       const existingUsername = await this.userRepository.findByUsername(updateUserDto.username);
@@ -78,7 +77,6 @@ export class UserService {
       updateData.username = updateUserDto.username;
     }
     if (updateUserDto.phone) updateData.phone = updateUserDto.phone;
-    if (updateUserDto.avatar) updateData.avatar = updateUserDto.avatar;
 
     const updated = await this.userRepository.update(id, updateData);
     return this.sanitizeUser(updated);

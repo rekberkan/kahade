@@ -152,7 +152,6 @@ export class AdminController {
         where,
         select: {
           id: true,
-          name: true,
           username: true,
           email: true,
           phone: true,
@@ -188,7 +187,7 @@ export class AdminController {
       where: { id },
       include: {
         wallet: true,
-        kycDocuments: true,
+        kycSubmissions: true,
       },
     });
 
@@ -323,8 +322,13 @@ export class AdminController {
       where: { id },
       data: { 
         kycStatus: 'REJECTED',
-        kycRejectionReason: dto.reason,
       },
+    });
+
+    // Store rejection reason in the latest KYC submission
+    await this.prisma.kYCSubmission.updateMany({
+      where: { userId: id },
+      data: { rejectionReason: dto.reason },
     });
 
     await this.createAuditLog(adminId, 'UPDATE', 'User', id, {

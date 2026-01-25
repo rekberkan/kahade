@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '@infrastructure/database/prisma.service';
-import { Dispute, DisputeStatus } from '@common/shims/prisma-types.shim';
+import { Dispute, DisputeStatus, DisputeDecision } from '@prisma/client';
 
 // ============================================================================
 // BANK-GRADE DISPUTE REPOSITORY
@@ -17,7 +17,7 @@ export interface ICreateDispute {
 export interface IUpdateDispute {
   status?: DisputeStatus;
   arbitratorId?: string;
-  decision?: string;
+  decision?: DisputeDecision;
   sellerAmountMinor?: bigint;
   buyerRefundMinor?: bigint;
   adminNotes?: string;
@@ -25,6 +25,9 @@ export interface IUpdateDispute {
   escalatedAt?: Date;
   escalatedTo?: string;
   decidedAt?: Date;
+  canAppeal?: boolean;
+  appealDeadline?: Date;
+  appealCount?: number;
 }
 
 @Injectable()

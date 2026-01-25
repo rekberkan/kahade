@@ -5,6 +5,7 @@
 generator client {
   provider        = "prisma-client-js"
   previewFeatures = ["prismaSchemaFolder"]
+  binaryTargets   = ["native", "linux-musl-openssl-3.0.x", "debian-openssl-3.0.x"]
 }
 
 datasource db {
@@ -37,10 +38,12 @@ enum Currency {
 enum FeePayer {
   BUYER
   SELLER
+  SPLIT
   FIFTY_FIFTY
 }
 
 enum OrderStatus {
+  WAITING_COUNTERPARTY
   PENDING_ACCEPT
   ACCEPTED
   PAID
@@ -52,6 +55,7 @@ enum OrderStatus {
 
 enum EscrowHoldStatus {
   ACTIVE
+  HELD
   RELEASED
   REFUNDED
   DISPUTED
@@ -62,14 +66,22 @@ enum DisputeStatus {
   OPEN
   RESPONDED
   ESCALATED
+  UNDER_REVIEW
   UNDER_ARBITRATION
+  AWAITING_RESPONSE
   DECIDED
   APPEALED
+  RESOLVED
   CLOSED
 }
 
 enum DisputeDecision {
   NONE
+  PENDING
+  BUYER_WINS
+  SELLER_WINS
+  SPLIT
+  CANCELLED
   RELEASE_ALL_TO_SELLER
   REFUND_ALL_TO_BUYER
   SPLIT_SETTLEMENT
@@ -104,6 +116,11 @@ enum ActivityType {
   LOGOUT
   ORDER_CREATE
   PAYMENT_SUCCESS
+  TRANSACTION_CREATED
+  TRANSACTION_UPDATED
+  PROFILE_UPDATED
+  WALLET_TOPUP
+  WALLET_WITHDRAW
 }
 
 enum LedgerAccountType {
@@ -124,6 +141,13 @@ enum ScheduledJobStatus {
 enum JournalType {
   TRANSACTION
   ADJUSTMENT
+  DEPOSIT
+  WITHDRAWAL
+  ESCROW_LOCK
+  ESCROW_RELEASE
+  TRANSFER
+  FEE
+  REFUND
 }
 
 enum PaymentProvider {
@@ -147,6 +171,7 @@ enum PaymentStatus {
   SUCCESS
   FAILED
   EXPIRED
+  PROCESSING
 }
 
 enum BankAccountType {
@@ -156,8 +181,10 @@ enum BankAccountType {
 
 enum WithdrawalStatus {
   PENDING
+  PROCESSING
   APPROVED
   COMPLETED
+  FAILED
   REJECTED
 }
 
@@ -193,4 +220,44 @@ enum ReferralRewardType {
 enum ReferralRewardStatus {
   PENDING
   CLAIMED
+}
+
+enum UserRole {
+  USER
+  ADMIN
+  MODERATOR
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  BANNED
+}
+
+enum NotificationType {
+  TRANSACTION
+  DISPUTE
+  PAYMENT
+  SYSTEM
+  WALLET
+  KYC
+}
+
+enum WalletTransactionType {
+  DEPOSIT
+  WITHDRAWAL
+  ESCROW_LOCK
+  ESCROW_RELEASE
+  REFUND
+  FEE
+  TRANSFER
+}
+
+enum TransactionStatus {
+  PENDING
+  PAYMENT_CONFIRMED
+  COMPLETED
+  DISPUTED
+  CANCELLED
+  REFUNDED
 }
